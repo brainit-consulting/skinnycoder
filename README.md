@@ -1,5 +1,13 @@
 # skinnycoder
 
+```text
+  ____  _  _______ _   _ _   ___   ______ ___  ____  _____ ____  
+ / ___|| |/ /_   _| \ | | \ | \ \ / / ___/ _ \|  _ \| ____|  _ \ 
+ \___ \| ' /  | | |  \| |  \| |\ V / |  | | | | | | |  _| | |_) |
+  ___) | . \  | | | |\  | |\  | | || |__| |_| | |_| | |___|  _ < 
+ |____/|_|\_\ |_| |_| \_|_| \_| |_| \____\___/|____/|_____|_| \_\
+```
+
 SkinnyCoder is a bare minimum coding harness that can be extended as needed.
 
 It is a lean TypeScript CLI with an 80s amber terminal style. It delegates model calls to the installed `codex` CLI first, so users can reuse their Codex login/subscription. API key provider support can be added later without changing the local tool loop.
