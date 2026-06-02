@@ -22,6 +22,26 @@ It is a lean TypeScript CLI with an 80s amber terminal style. It delegates model
 - Tracks SkinnyCoder changes for `/changes` and `/undo`.
 - Includes a smoke test for the basic CLI flow.
 
+## Why It Starts Lean
+
+SkinnyCoder stays small because it does not try to replace Codex, index the whole project, or load a large agent framework at startup.
+
+The CLI only boots a local TypeScript command loop, prints the terminal UI, and waits for input. When the user asks for model help, SkinnyCoder delegates reasoning to the installed `codex` CLI with `codex exec`, which reuses the user's existing Codex login/subscription.
+
+The local app owns only the minimum coding harness:
+
+- slash commands
+- file reads and writes
+- diff previews
+- approval prompts
+- shell command approval
+- change tracking and undo
+- small retained context
+
+It also asks Codex for one compact JSON action at a time instead of sending a large tool framework or full repository context. Read/list actions are cheap and automatic; edits and shell commands stay local and require approval.
+
+That is the "skinny" part: Codex provides the model brain, while SkinnyCoder provides the smallest useful terminal harness around it.
+
 ## Requirements
 
 - Node.js 20+
