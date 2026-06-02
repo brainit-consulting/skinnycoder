@@ -44,7 +44,14 @@ async function main() {
     }
     if (!line) continue;
 
-    if (line.startsWith("/")) {
+    if (line.startsWith("/edit")) {
+      const editPrompt = toEditPrompt(line);
+      if (!editPrompt) {
+        console.log(dim("usage: /edit <file> <instruction>"));
+        continue;
+      }
+      line = editPrompt;
+    } else if (line.startsWith("/")) {
       const keepGoing = await handleSlash(line, { cwd, session, provider, rl });
       if (!keepGoing) break;
       continue;
@@ -53,7 +60,7 @@ async function main() {
     try {
       let nextPrompt = line;
       for (let step = 0; step < 6; step++) {
-        const action = await provider.nextAction(nextPrompt, session.contextForModel());
+        const action = await withSpinner("thinking", () => provider.nextAction(nextPrompt, session.contextForModel()));
         if (action.type === "answer") {
           console.log(amber(action.message));
           session.addTurn(nextPrompt, action, action.message);
@@ -64,6 +71,7 @@ async function main() {
           const result = await applyAction(action, { cwd, session, dryRun: false });
           console.log(result);
           session.addTurn(nextPrompt, action, result);
+          if (action.type === "read_file" && isDisplayOnlyRead(nextPrompt)) break;
           nextPrompt = "Continue using the tool result. Return the next single JSON action.";
           continue;
         }
@@ -77,9 +85,9 @@ async function main() {
           break;
         }
 
-        const result = action.type === "run_command"
-          ? await runShell(action.command, cwd)
-          : await applyAction(action, { cwd, session, dryRun: false });
+        const result = await withSpinner("working", () => action.type === "run_command"
+          ? runShell(action.command, cwd)
+          : applyAction(action, { cwd, session, dryRun: false }));
         console.log(result);
         session.addTurn(nextPrompt, action, result);
         nextPrompt = "Continue after the approved action. Return answer if done, otherwise the next single JSON action.";
@@ -96,3 +104,33 @@ main().catch((err) => {
   console.error(error(err instanceof Error ? err.message : String(err)));
   process.exit(1);
 });
+
+function isDisplayOnlyRead(prompt: string): boolean {
+  return /\b(display|show|print|cat|read)\b/i.test(prompt) && /\b(contents?|file)\b/i.test(prompt);
+}
+
+function toEditPrompt(line: string): string | undefined {
+  const match = line.match(/^\/edit\s+(\S+)\s+(.+)$/);
+  if (!match) return undefined;
+  const [, path, instruction] = match;
+  return `Edit ${path}. ${instruction}`;
+}
+
+async function withSpinner<T>(label: string, task: () => Promise<T>): Promise<T> {
+  if (!output.isTTY) return task();
+
+  const frames = ["-", "\\", "|", "/"];
+  let index = 0;
+  output.write(dim(`${label} ${frames[index]}`));
+  const timer = setInterval(() => {
+    index = (index + 1) % frames.length;
+    output.write(`\r${dim(`${label} ${frames[index]}`)}`);
+  }, 120);
+
+  try {
+    return await task();
+  } finally {
+    clearInterval(timer);
+    output.write("\r\x1b[K");
+  }
+}

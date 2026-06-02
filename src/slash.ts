@@ -21,7 +21,7 @@ export async function handleSlash(line: string, ctx: SlashContext): Promise<bool
   const arg = rest.join(" ");
   switch (cmd) {
     case "/help":
-      console.log(amber("/help /login /model [name] /status /context /files [path] /read <file> /diff /changes /undo /clear /exit"));
+      console.log(amber("/help /login /model [name] /status /context /files [path] /read <file> /edit <file> <instruction> /diff /changes /undo /clear /exit"));
       return true;
     case "/login":
       console.log(await ctx.provider.login());

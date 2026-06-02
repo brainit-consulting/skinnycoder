@@ -122,6 +122,8 @@ On startup, type:
 /context           Show retained context and last Codex token usage
 /files [path]      List files
 /read <file>       Read a capped file preview
+/edit <file> <instruction>
+                   Ask Codex to edit a file, then preview and approve the change
 /diff              Show git diff
 /changes           Show files changed by SkinnyCoder
 /undo              Undo the last SkinnyCoder file change
