@@ -12,6 +12,8 @@ SkinnyCoder is a bare minimum coding harness that can be extended as needed.
 
 It is a lean TypeScript CLI with an 80s amber terminal style. It delegates model calls to the installed `codex` CLI first, so users can reuse their Codex login/subscription. API key provider support can be added later without changing the local tool loop.
 
+View the single-file demo page: [skinnycoder.html](./skinnycoder.html)
+
 ## What It Does
 
 - Starts an amber command-line coding session.
