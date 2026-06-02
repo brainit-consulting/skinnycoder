@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SkinnyCoder</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #120900;
+      color: #ffbf3f;
+      font-family: "Courier New", Courier, monospace;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      text-shadow: 0 0 6px rgba(255, 191, 63, 0.75);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(255, 191, 63, 0.04),
+        rgba(255, 191, 63, 0.04) 1px,
+        transparent 1px,
+        transparent 4px
+      );
+    }
+
+    .terminal {
+      width: min(900px, 100%);
+      border: 2px solid #ffbf3f;
+      box-shadow: 0 0 22px rgba(255, 191, 63, 0.45), inset 0 0 18px rgba(255, 191, 63, 0.12);
+      padding: 28px;
+      background: radial-gradient(circle at center, #241000 0%, #120900 72%);
+    }
+
+    .prompt {
+      color: #ffd98a;
+      margin-bottom: 18px;
+    }
+
+    pre {
+      margin: 0 0 28px;
+      overflow-x: auto;
+      line-height: 1.1;
+      font-size: clamp(12px, 2vw, 18px);
+    }
+
+    h1, h2 {
+      margin: 0 0 12px;
+      color: #ffd98a;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    h1 {
+      font-size: 28px;
+      border-bottom: 1px dashed #ffbf3f;
+      padding-bottom: 10px;
+    }
+
+    h2 {
+      font-size: 18px;
+      margin-top: 28px;
+    }
+
+    p, li {
+      line-height: 1.6;
+      font-size: 16px;
+    }
+
+    ul {
+      padding-left: 22px;
+      margin: 10px 0 0;
+    }
+
+    .command {
+      color: #fff1c2;
+      font-weight: 700;
+    }
+
+    footer {
+      margin-top: 32px;
+      padding-top: 14px;
+      border-top: 1px dashed #ffbf3f;
+      color: #ffd98a;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <main class="terminal">
+    <div class="prompt">C:\SKINNYCODER&gt; boot skinnycoder.html</div>
+
+    <pre>
+  ____  _    _                            ____          _
+ / ___|| | _(_)_ __  _ __  _   _        / ___|___   __| | ___ _ __
+ \___ \| |/ / | '_ \| '_ \| | | |_____ | |   / _ \ / _` |/ _ \ '__|
+  ___) |   &lt;| | | | | | | | |_| |_____| |__| (_) | (_| |  __/ |
+ |____/|_|\_\_|_| |_|_| |_|\__, |       \____\___/ \__,_|\___|_|
+                           |___/
+    </pre>
+
+    <h1>SkinnyCoder</h1>
+    <p>
+      SkinnyCoder is a lean coding assistant workflow focused on fast, direct software changes.
+      It reads the project, plans only what is needed, edits files with minimal ceremony, and reports
+      the result without turning a small task into a large process.
+    </p>
+
+    <h2>Why it is skinny</h2>
+    <p>
+      It is skinny because it keeps the interface and workflow compact. No heavy dashboards, no noisy
+      rituals, and no bloated output. SkinnyCoder favors clear actions, small files, direct commands,
+      and practical progress.
+    </p>
+
+    <h2>Slash commands</h2>
+    <ul>
+      <li><span class="command">/plan</span> - outline the next steps before changing code.</li>
+      <li><span class="command">/read</span> - inspect files and understand the current project.</li>
+      <li><span class="command">/edit</span> - make focused file changes.</li>
+      <li><span class="command">/run</span> - execute a command or check the result.</li>
+      <li><span class="command">/ship</span> - summarize what changed and what was verified.</li>
+    </ul>
+
+    <footer>Created by: Emile du Toit</footer>
+  </main>
+</body>
+</html>
