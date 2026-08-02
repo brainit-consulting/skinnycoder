@@ -12,7 +12,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "skinnycoder.html"
   ],
   "scripts": {
     "build": "tsc",

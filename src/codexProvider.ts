@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { z } from "zod";
 import type { AgentAction } from "./types.js";
+import { readCodexModelConfig, type CodexModelConfig } from "./codexModel.js";
 
 export type CodexUsage = {
   input_tokens?: number;
@@ -19,17 +20,53 @@ const ActionSchema: z.ZodType<AgentAction> = z.discriminatedUnion("type", [
   z.object({ type: z.literal("run_command"), command: z.string() })
 ]);
 
+export const REASONING_EFFORTS = ["low", "medium", "high", "xhigh", "max", "ultra"] as const;
+
+export function normalizeReasoningEffort(effort: string): string {
+  const normalized = effort.toLowerCase();
+  if (!(REASONING_EFFORTS as readonly string[]).includes(normalized)) {
+    throw new Error(`unsupported reasoning effort: ${effort}; use ${REASONING_EFFORTS.join(", ")}, or default`);
+  }
+  return normalized;
+}
+
 export class CodexProvider {
   private lastUsage: CodexUsage | undefined;
+  private readonly configuredModel: CodexModelConfig;
+  private modelSource: string;
+  private reasoningSource: string;
 
-  constructor(private readonly cwd: string, private model?: string) {}
+  constructor(private readonly cwd: string, private model?: string, private reasoningEffort?: string) {
+    this.configuredModel = readCodexModelConfig(cwd);
+    this.modelSource = model ? "SkinnyCoder command line" : this.configuredModel.modelSource;
+    this.reasoningSource = reasoningEffort ? "SkinnyCoder command line" : this.configuredModel.reasoningSource;
+    if (reasoningEffort) this.reasoningEffort = normalizeReasoningEffort(reasoningEffort);
+  }
 
   setModel(model: string | undefined) {
     this.model = model;
+    this.modelSource = model ? "SkinnyCoder session override" : this.configuredModel.modelSource;
+  }
+
+  setReasoningEffort(effort: string | undefined) {
+    this.reasoningEffort = effort ? normalizeReasoningEffort(effort) : undefined;
+    this.reasoningSource = effort ? "SkinnyCoder session override" : this.configuredModel.reasoningSource;
   }
 
   getModel() {
-    return this.model ?? "codex default";
+    return this.model ?? this.configuredModel.model ?? "Codex recommended default";
+  }
+
+  getReasoningEffort() {
+    return this.reasoningEffort ?? this.configuredModel.reasoningEffort ?? "Codex default";
+  }
+
+  describeModel() {
+    return `${this.getModel()} (${this.modelSource}, ${this.getReasoningEffort()} reasoning)`;
+  }
+
+  describeReasoning() {
+    return `${this.getReasoningEffort()} (${this.reasoningSource})`;
   }
 
   getLastUsage() {
@@ -46,6 +83,9 @@ export class CodexProvider {
       "Actions: answer{message}, read_file{path}, list_files{path?}, create_file{path,content}, replace_in_file{path,oldText,newText}, append_file{path,content}, run_command{command}.",
       'Example: {"type":"answer","message":"done"}',
       "Use file actions for edits. Read/list before editing unknown code.",
+      "When Ctx.scope is non-empty, all file actions must stay within one of those paths.",
+      `Effective Codex model: ${this.getModel()}. If asked which model is in use, answer with this exact value.`,
+      `Effective reasoning effort: ${this.getReasoningEffort()}. If asked which reasoning effort is in use, answer with this exact value.`,
       `Ctx:${context}`,
       `User:${userPrompt}`
     ].join("\n");
@@ -61,6 +101,7 @@ export class CodexProvider {
       "never"
     ];
     if (this.model) args.push("--model", this.model);
+    this.addReasoningOverride(args);
     args.push("-");
 
     const stdout = await run("codex", args, this.cwd, prompt);
@@ -69,9 +110,52 @@ export class CodexProvider {
     const json = result.json;
     return ActionSchema.parse(JSON.parse(json));
   }
+
+  async webSearch(query: string): Promise<string> {
+    const prompt = [
+      "Search the web to answer the user's query.",
+      "Return a concise answer of at most 250 words with direct source links.",
+      "Prefer primary and authoritative sources. Do not perform local file or shell actions.",
+      `Query: ${query}`
+    ].join("\n");
+    const args = [
+      "--search",
+      "exec",
+      "--json",
+      "--ephemeral",
+      "--skip-git-repo-check",
+      "--ignore-rules",
+      "--sandbox",
+      "read-only",
+      "--color",
+      "never"
+    ];
+    if (this.model) args.push("--model", this.model);
+    this.addReasoningOverride(args);
+    args.push("-");
+
+    const stdout = await run("codex", args, this.cwd, prompt);
+    const result = extractCodexResult(stdout);
+    this.lastUsage = result.usage;
+    return result.message.length > 4_000
+      ? `${result.message.slice(0, 4_000)}\n...[web answer truncated]`
+      : result.message;
+  }
+
+  private addReasoningOverride(args: string[]) {
+    if (this.reasoningEffort) {
+      args.push("--config", `model_reasoning_effort=\"${this.reasoningEffort}\"`);
+    }
+  }
+
 }
 
 function extractJsonFromCodex(text: string): { json: string; usage?: CodexUsage } {
+  const result = extractCodexResult(text);
+  return { json: extractJson(result.message), usage: result.usage };
+}
+
+function extractCodexResult(text: string): { message: string; usage?: CodexUsage } {
   let latestAgentText = "";
   let usage: CodexUsage | undefined;
   for (const line of text.split(/\r?\n/)) {
@@ -87,7 +171,7 @@ function extractJsonFromCodex(text: string): { json: string; usage?: CodexUsage 
     }
   }
   if (!latestAgentText) throw new Error(`Codex returned no agent message: ${text.slice(0, 500)}`);
-  return { json: extractJson(latestAgentText), usage };
+  return { message: latestAgentText, usage };
 }
 
 function extractJson(text: string): string {

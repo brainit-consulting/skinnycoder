@@ -26,15 +26,16 @@ export function staticLogo(): string {
   return amber(logoLines.join("\n"));
 }
 
-export function startupInfo(cwd: string): string {
+export function startupInfo(cwd: string, version: string): string {
   const width = Math.min(72, Math.max(32, process.stdout.columns || 72));
   const divider = "-".repeat(width);
   return [
     "",
     dim(divider),
-    dim("Created by: Emile du Toit"),
+    dim("Created by: Emile du Toit from BrainITconsulting.com"),
     dim("SkinnyCoder is a bare minimum coding harness that can be extended as needed..."),
     "",
+    dim(`skinnycoder: v${version}`),
     dim(`cwd: ${cwd}`),
     dim("auth: codex cli subscription first; run /login if needed"),
     dim("edits and shell commands require approval"),
