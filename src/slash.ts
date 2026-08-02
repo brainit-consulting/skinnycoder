@@ -5,13 +5,14 @@ import { join, relative } from "node:path";
 import type { CodexProvider } from "./codexProvider.js";
 import type { Session } from "./session.js";
 import { TRUSTED_SKILLS, type SkillManager, type SkillStatus, type TrustedSkillName } from "./skillManager.js";
-import { runShell } from "./shell.js";
+import { formatShellResult, runShell } from "./shell.js";
 import { listFiles, readFilePage, safePath } from "./tools.js";
 import { amber, dim, error, ok } from "./theme.js";
 import { openAboutPage } from "./about.js";
 import { collectReviewDiff } from "./review.js";
 import { skinnyCoderVersion } from "./version.js";
 import type { PromptInput } from "./input.js";
+import { skillContinuationPrompt } from "./workflow.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -85,7 +86,11 @@ export async function handleSlash(line: string, ctx: SlashContext): Promise<bool
         console.log(dim("skipped"));
         return true;
       }
-      console.log(await runShell(arg, ctx.cwd));
+      {
+        const result = await runShell(arg, ctx.cwd);
+        const rendered = formatShellResult(result);
+        console.log(result.ok ? amber(rendered) : error(rendered));
+      }
       return true;
     case "/scope":
       setOrShowScope(ctx, arg);
@@ -119,6 +124,14 @@ export async function handleSlash(line: string, ctx: SlashContext): Promise<bool
       }
       console.log(await formatSkills(ctx));
       return true;
+    case "/continue": {
+      const active = ctx.session.getActiveSkill();
+      if (!active) {
+        console.log(dim("no active skill workflow to continue"));
+        return true;
+      }
+      return { prompt: skillContinuationPrompt(active) };
+    }
     case "/start-an-app":
       if (await hasExistingProject(ctx.cwd)) {
         throw new Error("/start-an-app requires a new or empty folder; launch SkinnyCoder in the folder where the new app should be created");
@@ -167,6 +180,7 @@ function formatContext(ctx: SlashContext): string {
     `  cwd: ${stats.cwdChars} chars`,
     `  scope: ${stats.scopeChars} chars (${formatScope(ctx.session)})`,
     `  skill state: ${stats.skillStateChars} chars`,
+    `  skill checkpoint: ${stats.skillCheckpointChars} chars`,
     `  user prompts: ${stats.userChars} chars`,
     `  action json: ${stats.actionChars} chars`,
     `  tool results: ${stats.resultChars} chars`,
@@ -261,6 +275,7 @@ function helpText(): string {
     "/status                       Show cwd, model, active skill, scope, and changes",
     "/context                      Show retained context and last token usage",
     "/skills [stop]                Show trusted skills or stop the active workflow",
+    "/continue                     Resume the active skill from its checkpoint",
     "/start-an-app [idea]          Interview, plan, and scaffold a new app",
     "/security-scanner             Run an OWASP Top 10:2025 audit workflow",
     "/scope [paths|clear]          Show, set, or clear file boundaries",

@@ -22,6 +22,7 @@
     "prepack": "npm run build",
     "test:review": "npm run build && node scripts/review-collector-test.mjs",
     "test:interaction": "npm run build && node scripts/interaction-test.mjs",
+    "test:workflow": "npm run build && node scripts/workflow-test.mjs",
     "test:skills": "npm run build && node scripts/skill-manager-test.mjs",
     "test:smoke": "npm run build && node scripts/smoke-test.mjs"
   },

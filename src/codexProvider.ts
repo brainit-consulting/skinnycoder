@@ -16,19 +16,25 @@ export type CodexUsage = {
 
 const ActionSchema: z.ZodType<AgentAction> = z.discriminatedUnion("type", [
   z.object({ type: z.literal("answer"), message: z.string() }),
-  z.object({ type: z.literal("skill_progress"), message: z.string(), state: z.string().max(3000) }),
+  z.object({
+    type: z.literal("skill_progress"),
+    message: z.string(),
+    state: z.string().max(3000),
+    requiresInput: z.boolean().optional()
+  }),
   z.object({ type: z.literal("complete_skill"), message: z.string() }),
   z.object({
     type: z.literal("read_file"),
     path: z.string(),
     startLine: z.number().int().positive().optional(),
-    lineCount: z.number().int().min(1).max(400).optional()
+    lineCount: z.number().int().min(1).max(400).optional(),
+    state: z.string().max(3000).optional()
   }),
-  z.object({ type: z.literal("list_files"), path: z.string().optional() }),
-  z.object({ type: z.literal("create_file"), path: z.string(), content: z.string() }),
-  z.object({ type: z.literal("replace_in_file"), path: z.string(), oldText: z.string(), newText: z.string() }),
-  z.object({ type: z.literal("append_file"), path: z.string(), content: z.string() }),
-  z.object({ type: z.literal("run_command"), command: z.string() })
+  z.object({ type: z.literal("list_files"), path: z.string().optional(), state: z.string().max(3000).optional() }),
+  z.object({ type: z.literal("create_file"), path: z.string(), content: z.string(), state: z.string().max(3000).optional() }),
+  z.object({ type: z.literal("replace_in_file"), path: z.string(), oldText: z.string(), newText: z.string(), state: z.string().max(3000).optional() }),
+  z.object({ type: z.literal("append_file"), path: z.string(), content: z.string(), state: z.string().max(3000).optional() }),
+  z.object({ type: z.literal("run_command"), command: z.string(), state: z.string().max(3000).optional() })
 ]);
 
 export const REASONING_EFFORTS = ["low", "medium", "high", "xhigh", "max", "ultra"] as const;
@@ -100,15 +106,21 @@ export class CodexProvider {
       "Use that exact skill for this turn and follow its referenced resources.",
       "SkinnyCoder's cwd, scope, approval requirements, and one-action JSON contract override any conflicting skill instruction.",
       `Current workflow state: ${JSON.stringify(activeSkill.state ?? "Not established yet.")}`,
-      "For every user question or progress update, use skill_progress{message,state}. Keep state under 3000 characters and preserve confirmed requirements, decisions, current phase, and the pending question.",
+      `Local last-action checkpoint: ${JSON.stringify(activeSkill.checkpoint ?? "No tool action recorded yet.")}`,
+      "Use skill_progress{message,state,requiresInput} for workflow updates. Set requiresInput true only for an actual question; set it false for status that should continue automatically.",
+      "Include the latest state on every tool action. Keep it under 3000 characters and preserve confirmed requirements, approvals, current phase, and the pending action.",
+      "Treat confirmed decisions and approvals as final unless a new conflict makes them impossible.",
+      "Before complete_skill, verify required output files exist and run the project's configured lint/build checks when available. Do not report completion after a failed check.",
       "Use complete_skill{message} only when the entire skill workflow is finished."
     ] : [];
     const prompt = [
       "Skinnycoder planner. Return one JSON object only.",
-      "Actions: answer{message}, skill_progress{message,state}, complete_skill{message}, read_file{path,startLine?,lineCount?}, list_files{path?}, create_file{path,content}, replace_in_file{path,oldText,newText}, append_file{path,content}, run_command{command}.",
+      "Actions: answer{message}, skill_progress{message,state,requiresInput}, complete_skill{message}, read_file{path,startLine?,lineCount?,state?}, list_files{path?,state?}, create_file{path,content,state?}, replace_in_file{path,oldText,newText,state?}, append_file{path,content,state?}, run_command{command,state?}.",
       'Example: {"type":"answer","message":"done"}',
       "Use file actions for edits. Read/list before editing unknown code.",
       "When Ctx.scope is non-empty, all file actions must stay within one of those paths.",
+      `Host platform: ${process.platform}. Commands run through ${process.platform === "win32" ? "PowerShell with -NoProfile" : "the host shell"}.`,
+      ...(process.platform === "win32" ? ["Use valid PowerShell syntax and do not assign to automatic or constant variables such as $HOME."] : []),
       ...plannerIntentInstructions(intent),
       ...skillInstructions,
       `Effective Codex model: ${this.getModel()}. If asked which model is in use, answer with this exact value.`,

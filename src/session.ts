@@ -46,6 +46,19 @@ export class Session {
     this.activeSkill.state = state.slice(0, 3000);
   }
 
+  updateActiveSkillCheckpoint(action: AgentAction, result: string) {
+    if (!this.activeSkill) return;
+    const target = "path" in action
+      ? action.path ?? "."
+      : "command" in action
+        ? action.command.slice(0, 160)
+        : action.type;
+    const outcome = action.type === "read_file" || action.type === "list_files"
+      ? "completed"
+      : result.split(/\r?\n/, 1)[0]?.slice(0, 200) || "completed";
+    this.activeSkill.checkpoint = `${action.type} ${target}: ${outcome}`;
+  }
+
   clear() {
     this.turns = [];
   }
@@ -58,7 +71,8 @@ export class Session {
     const cwdChars = this.cwd.length;
     const scopeChars = this.scope.join(",").length;
     const skillStateChars = this.activeSkill?.state?.length ?? 0;
-    const totalChars = cwdChars + scopeChars + skillStateChars + userChars + actionChars + resultChars;
+    const skillCheckpointChars = this.activeSkill?.checkpoint?.length ?? 0;
+    const totalChars = cwdChars + scopeChars + skillStateChars + skillCheckpointChars + userChars + actionChars + resultChars;
 
     return {
       retainedTurns: this.turns.length,
@@ -66,6 +80,7 @@ export class Session {
       cwdChars,
       scopeChars,
       skillStateChars,
+      skillCheckpointChars,
       userChars,
       actionChars,
       resultChars,
@@ -84,8 +99,14 @@ export class Session {
   }
 }
 
-function actionForContext(action: AgentAction): AgentAction | { type: "skill_progress"; message: string } {
-  if (action.type === "skill_progress") return { type: action.type, message: action.message };
+function actionForContext(action: AgentAction): object {
+  if (action.type === "skill_progress") {
+    return { type: action.type, message: action.message, requiresInput: action.requiresInput };
+  }
+  if ("state" in action) {
+    const { state: _state, ...withoutState } = action;
+    return withoutState;
+  }
   return action;
 }
 

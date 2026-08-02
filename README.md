@@ -24,6 +24,7 @@ View the single-file demo page: [skinnycoder.html](./skinnycoder.html)
 - Shows file diffs before applying changes.
 - Tracks SkinnyCoder changes for `/changes` and `/undo`.
 - Can install and run allowlisted BrainIT workflows with `/start-an-app` and `/security-scanner`.
+- Checkpoints long skill workflows and resumes them without repeating approvals.
 - Includes a smoke test for the basic CLI flow.
 
 ## Why It Starts Lean
@@ -170,6 +171,7 @@ skinnycoder --no-update-check
 /context           Show retained context and last Codex token usage
 /skills            Show trusted BrainIT skill installation and workflow status
 /skills stop       Stop the active skill workflow
+/continue          Resume the active skill from its latest checkpoint
 /start-an-app [idea]
                    Interview, agree a build sheet, and scaffold a new app
 /security-scanner  Run an OWASP Top 10:2025 audit workflow
@@ -222,9 +224,12 @@ command output to conversation context:
 /run rg "CodexProvider" src
 ```
 
-SkinnyCoder previews the command and requires approval before execution. Output
-is capped at 12,000 characters. Shell commands are not constrained by `/scope`,
-so review each command before approving it.
+SkinnyCoder previews the command and requires approval before execution. The
+result reports success or failure, the exit code, stdout, and stderr separately;
+combined displayed output remains bounded. On Windows the planner is told that
+commands run in PowerShell and is warned not to overwrite automatic variables
+such as `$HOME`. Shell commands are not constrained by `/scope`, so review each
+command before approving it.
 
 Limit file listings, reads, model-proposed edits, and `/diff` to relevant paths:
 
@@ -309,10 +314,15 @@ source fork.
 An active workflow is named in `/status` and `/context`. SkinnyCoder explicitly
 reloads that skill for each fresh planner call while retaining only its normal
 four recent turns plus a capped 3,000-character workflow state containing
-confirmed requirements, decisions, current phase, and the pending question. A
-workflow can finish itself with `complete_skill`, or the user can leave it with
-`/skills stop`. Skill instructions never override the active cwd, `/scope`, diff
-preview, or approval rules.
+confirmed requirements, decisions, approvals, current phase, and pending
+action. Nonblocking progress continues automatically; an actual question pauses
+for input. Tool actions refresh both the model summary and a content-free local
+last-action checkpoint, and `/continue` resumes after
+the 24-action safety boundary without repeating confirmed decisions. Before a
+workflow can finish with `complete_skill`, it must verify required files and run
+the project's configured lint/build checks when available. The user can leave a
+workflow with `/skills stop`. Skill instructions never override the active cwd,
+`/scope`, diff preview, or approval rules.
 
 ## Model selection
 

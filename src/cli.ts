@@ -4,7 +4,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { resolve } from "node:path";
 import { stat } from "node:fs/promises";
-import { runShell } from "./shell.js";
+import { formatShellResult, runShell } from "./shell.js";
 import { Session } from "./session.js";
 import { amber, animatedLogo, dim, error, promptText, startupInfo } from "./theme.js";
 import { CodexProvider, normalizeReasoningEffort } from "./codexProvider.js";
@@ -15,6 +15,7 @@ import { skinnyCoderVersion } from "./version.js";
 import { SkillManager } from "./skillManager.js";
 import { PromptInput } from "./input.js";
 import { parseEditCommand, type PlannerIntent } from "./intent.js";
+import { actionSkillState, skillProgressNeedsInput } from "./workflow.js";
 
 const program = new Command()
   .name("skinnycoder")
@@ -97,6 +98,8 @@ async function main() {
           session.getActiveSkill(),
           intent
         ));
+        const skillState = actionSkillState(action);
+        if (skillState) session.updateActiveSkillState(skillState);
         if (action.type === "answer") {
           console.log(amber(action.message));
           session.addTurn(nextPrompt, action, action.message);
@@ -105,11 +108,14 @@ async function main() {
         }
 
         if (action.type === "skill_progress") {
-          session.updateActiveSkillState(action.state);
           console.log(amber(action.message));
           session.addTurn(nextPrompt, action, action.message);
-          settled = true;
-          break;
+          if (skillProgressNeedsInput(action)) {
+            settled = true;
+            break;
+          }
+          nextPrompt = "Continue the active workflow from the updated state. Return the next single JSON action.";
+          continue;
         }
 
         if (action.type === "complete_skill") {
@@ -126,6 +132,7 @@ async function main() {
           const result = await applyAction(action, { cwd, session, dryRun: false });
           console.log(result);
           session.addTurn(nextPrompt, action, result);
+          session.updateActiveSkillCheckpoint(action, result);
           nextPrompt = "Continue using the tool result. Return the next single JSON action.";
           continue;
         }
@@ -140,15 +147,21 @@ async function main() {
           break;
         }
 
-        const result = await withSpinner("working", () => action.type === "run_command"
-          ? runShell(action.command, cwd)
-          : applyAction(action, { cwd, session, dryRun: false }));
-        console.log(result);
+        let result: string;
+        if (action.type === "run_command") {
+          const shellResult = await withSpinner("working", () => runShell(action.command, cwd));
+          result = formatShellResult(shellResult);
+          console.log(shellResult.ok ? amber(result) : error(result));
+        } else {
+          result = await withSpinner("working", () => applyAction(action, { cwd, session, dryRun: false }));
+          console.log(result);
+        }
         session.addTurn(nextPrompt, action, result);
+        session.updateActiveSkillCheckpoint(action, result);
         nextPrompt = "Continue after the approved action. Return answer if done, otherwise the next single JSON action.";
       }
       if (!settled && session.getActiveSkill()) {
-        console.log(dim(`workflow paused after ${stepLimit} actions; type continue to resume ${session.getActiveSkill()?.name}`));
+        console.log(dim(`workflow checkpoint after ${stepLimit} actions; type /continue to resume ${session.getActiveSkill()?.name}`));
       }
     } catch (err) {
       console.log(error(err instanceof Error ? err.message : String(err)));

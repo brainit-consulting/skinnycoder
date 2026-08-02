@@ -362,7 +362,7 @@
         <div class="section-heading"><span class="section-id">01</span><h2 id="flow-title">One action at a time</h2></div>
         <div class="flow">
           <div class="flow-step"><span class="step-number">[01]</span><strong>Ask</strong><p>Give SkinnyCoder a focused task. Multiline pastes stay together as one request.</p></div>
-          <div class="flow-step"><span class="step-number">[02]</span><strong>Delegate</strong><p>Codex returns one compact JSON action instead of a large agent framework.</p></div>
+          <div class="flow-step"><span class="step-number">[02]</span><strong>Delegate</strong><p>Codex returns one compact JSON action and durable skill state instead of a large agent framework.</p></div>
           <div class="flow-step"><span class="step-number">[03]</span><strong>Inspect</strong><p>Reads are paged with continuation commands. Diffs appear before writes. Scope keeps files bounded.</p></div>
           <div class="flow-step"><span class="step-number">[04]</span><strong>Approve</strong><p>You authorize edits and commands; SkinnyCoder tracks changes for undo.</p></div>
         </div>
@@ -397,7 +397,7 @@
             <h3>Build</h3>
             <dl class="commands">
               <dt>/edit &lt;file&gt; ...</dt><dd>Preserve explicit edit intent, create missing targets, then review the diff.</dd>
-              <dt>/run &lt;command&gt;</dt><dd>Approve a direct local command without a model call.</dd>
+              <dt>/run &lt;command&gt;</dt><dd>Approve a direct command and see its exit code, stdout, and stderr.</dd>
               <dt>/review</dt><dd>Review scoped uncommitted changes without retaining the diff.</dd>
               <dt>/diff</dt><dd>Show Git changes within the active scope.</dd>
               <dt>/changes</dt><dd>List files changed by SkinnyCoder.</dd>
@@ -409,6 +409,7 @@
             <h3>Guided skills</h3>
             <dl class="commands">
               <dt>/skills</dt><dd>Check trusted BrainIT workflow installation and active status.</dd>
+              <dt>/continue</dt><dd>Resume an active skill from its durable checkpoint.</dd>
               <dt>/start-an-app [idea]</dt><dd>Interview, agree a build sheet, then scaffold in a new folder.</dd>
               <dt>/security-scanner</dt><dd>Run an OWASP Top 10:2025 audit of the current project.</dd>
               <dt>/skills stop</dt><dd>Leave the active workflow without uninstalling it.</dd>
@@ -443,7 +444,7 @@ skinnycoder --version</pre>
           <div class="note-panel">
             <h3>What stays skinny</h3>
             <p><code>/run</code> output never enters model context. <code>/web</code> uses an ephemeral search and retains neither the query nor answer.</p>
-            <p><code>/scope</code> stores only path names. SkinnyCoder sends at most four recent turns; active skills add only a capped workflow summary.</p>
+            <p><code>/scope</code> stores only path names. SkinnyCoder sends at most four recent turns; active skills add capped state plus a content-free local action checkpoint and resume without repeating confirmed approvals.</p>
             <p>Trusted skills install only on first use and only after approval. Their workflows keep the same scope, diff, command, and write gates.</p>
             <p>Shell commands are not constrained by file scope. Every command is previewed and requires your approval.</p>
           </div>
