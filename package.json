@@ -33,7 +33,7 @@
   "devDependencies": {
     "@types/diff": "^7.0.2",
     "@types/node": "^24.10.1",
-    "tsx": "^4.20.6",
+    "tsx": "^4.23.4",
     "typescript": "^5.9.3"
   },
   "engines": {

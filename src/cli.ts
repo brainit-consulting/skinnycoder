@@ -5,7 +5,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { resolve } from "node:path";
 import { runShell } from "./shell.js";
 import { Session } from "./session.js";
-import { amber, animatedLogo, dim, error, promptText, startupInfo, staticLogo } from "./theme.js";
+import { amber, animatedLogo, dim, error, promptText, startupInfo } from "./theme.js";
 import { CodexProvider, normalizeReasoningEffort } from "./codexProvider.js";
 import { checkCodexVersion, codexUpdateCommand, updateCodex } from "./codexVersion.js";
 import { handleSlash } from "./slash.js";
@@ -40,7 +40,6 @@ async function askYesNo(question: string): Promise<boolean> {
 
 async function main() {
   if (opts.logo) await animatedLogo(output);
-  else console.log(staticLogo());
   console.log(startupInfo(cwd, skinnyCoderVersion));
   console.log(dim(`model: ${provider.describeModel()}\n`));
   if (input.isTTY && opts.updateCheck) await checkCodexAtStartup();

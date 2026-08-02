@@ -9,6 +9,13 @@ rmSync(scratch, { force: true });
 
 const cases = [
   {
+    name: "no logo option",
+    args: ["--no-logo"],
+    input: ["/exit"],
+    expect: ["skinnycoder: v0.2.0"],
+    reject: [" / ___||"]
+  },
+  {
     name: "slash commands",
     input: ["/help", "/skills", "/start-an-app", "/security-scanner", "n", "/skills stop", "/status", "/reasoning high", "/status", "/reasoning default", "/scope src", "/scope", "/files", "/read package.json", "/scope clear", "/read package.json", "/run Write-Output direct-run-ok", "y", "/context", "/changes", "/exit"],
     expect: ["/review", "/start-an-app", "/security-scanner", "trusted skills", "/start-an-app requires a new or empty folder", "Install trusted security-scanner skill for Codex?", "skill installation skipped", "no active skill", "skinnycoder: v0.2.0", "hint: type /help to get started", "model:", "active skill: none", "reasoning: high (SkinnyCoder session override)", "high reasoning", "reasoning: low (Codex user config)", "scope: src", "file cli.ts", "path is outside active scope: package.json", "scope: entire working directory", "\"name\": \"skinnycoder\"", "Run command?", "direct-run-ok", "retained turns: 0", "last Codex call: none yet", "no skinnycoder changes"]
@@ -37,7 +44,7 @@ const cases = [
 
 for (const testCase of cases) {
   process.stdout.write(`smoke: ${testCase.name}... `);
-  const output = await runCli(testCase.input);
+  const output = await runCli(testCase.input, testCase.args);
   for (const text of testCase.expect ?? []) {
     if (!output.includes(text)) {
       throw new Error(`Missing expected text "${text}" in ${testCase.name}\n\n${output}`);
@@ -46,15 +53,20 @@ for (const testCase of cases) {
   if (testCase.expectAny && !testCase.expectAny.some((text) => output.includes(text))) {
     throw new Error(`Missing any expected text ${testCase.expectAny.join(", ")} in ${testCase.name}\n\n${output}`);
   }
+  for (const text of testCase.reject ?? []) {
+    if (output.includes(text)) {
+      throw new Error(`Unexpected text "${text}" in ${testCase.name}\n\n${output}`);
+    }
+  }
   testCase.after?.();
   process.stdout.write("ok\n");
 }
 
 console.log("smoke tests passed");
 
-function runCli(lines) {
+function runCli(lines, args = []) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ["dist/cli.js"], { cwd, stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(process.execPath, ["dist/cli.js", ...args], { cwd, stdio: ["pipe", "pipe", "pipe"] });
     let output = "";
     let index = 0;
     let settled = false;
