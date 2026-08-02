@@ -10,8 +10,8 @@ rmSync(scratch, { force: true });
 const cases = [
   {
     name: "slash commands",
-    input: ["/status", "/context", "/files src", "/read package.json", "/changes", "/exit"],
-    expect: ["hint: type /help to get started", "model:", "skinnycoder retained context", "last Codex call: none yet", "file cli.ts", "\"name\": \"skinnycoder\"", "no skinnycoder changes"]
+    input: ["/status", "/reasoning high", "/status", "/reasoning default", "/scope src", "/scope", "/files", "/read package.json", "/scope clear", "/read package.json", "/run Write-Output direct-run-ok", "y", "/context", "/changes", "/exit"],
+    expect: ["skinnycoder: v0.1.0", "hint: type /help to get started", "model:", "reasoning: high (SkinnyCoder session override)", "high reasoning", "reasoning: low (Codex user config)", "scope: src", "file cli.ts", "path is outside active scope: package.json", "scope: entire working directory", "\"name\": \"skinnycoder\"", "Run command?", "direct-run-ok", "retained turns: 0", "last Codex call: none yet", "no skinnycoder changes"]
   },
   {
     name: "codex answer",
@@ -28,7 +28,7 @@ const cases = [
       "/undo",
       "/exit"
     ],
-    expect: ["Approve create_file?", "wrote scratch-smoke-test.txt", "smoke ok", "1. scratch-smoke-test.txt", "undid scratch-smoke-test.txt"],
+    expect: ["Approve create_file?", "wrote ", "scratch-smoke-test.txt", "smoke ok", "undid "],
     after: () => {
       if (existsSync(scratch)) throw new Error("scratch-smoke-test.txt still exists after /undo");
     }

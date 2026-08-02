@@ -1,28 +1,34 @@
 #!/usr/bin/env node
-import { Command } from "commander";
+import { Command, InvalidArgumentError } from "commander";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { resolve } from "node:path";
 import { runShell } from "./shell.js";
 import { Session } from "./session.js";
 import { amber, animatedLogo, dim, error, promptText, startupInfo, staticLogo } from "./theme.js";
-import { CodexProvider } from "./codexProvider.js";
+import { CodexProvider, normalizeReasoningEffort } from "./codexProvider.js";
+import { checkCodexVersion, codexUpdateCommand, updateCodex } from "./codexVersion.js";
 import { handleSlash } from "./slash.js";
 import { applyAction } from "./tools.js";
+import { skinnyCoderVersion } from "./version.js";
 
 const program = new Command()
   .name("skinnycoder")
   .description("Lean amber-terminal coding CLI")
+  .version(skinnyCoderVersion)
   .option("-C, --cwd <dir>", "working directory", process.cwd())
   .option("-m, --model <model>", "Codex model")
+  .option("-r, --reasoning <effort>", "Codex reasoning effort", parseReasoningOption)
   .option("--logo", "show startup logo", true)
   .option("--no-logo", "skip startup logo")
+  .option("--update-check", "check for Codex CLI updates on startup", true)
+  .option("--no-update-check", "skip the Codex CLI update check")
   .parse(process.argv);
 
-const opts = program.opts<{ cwd: string; model?: string; logo: boolean }>();
+const opts = program.opts<{ cwd: string; model?: string; reasoning?: string; logo: boolean; updateCheck: boolean }>();
 const cwd = resolve(opts.cwd);
 const session = new Session(cwd);
-const provider = new CodexProvider(cwd, opts.model);
+const provider = new CodexProvider(cwd, opts.model, opts.reasoning);
 const rl = createInterface({ input, output });
 
 async function askYesNo(question: string): Promise<boolean> {
@@ -33,7 +39,9 @@ async function askYesNo(question: string): Promise<boolean> {
 async function main() {
   if (opts.logo) await animatedLogo(output);
   else console.log(staticLogo());
-  console.log(startupInfo(cwd));
+  console.log(startupInfo(cwd, skinnyCoderVersion));
+  console.log(dim(`model: ${provider.describeModel()}\n`));
+  if (input.isTTY && opts.updateCheck) await checkCodexAtStartup();
 
   while (true) {
     let line: string;
@@ -52,8 +60,12 @@ async function main() {
       }
       line = editPrompt;
     } else if (line.startsWith("/")) {
-      const keepGoing = await handleSlash(line, { cwd, session, provider, rl });
-      if (!keepGoing) break;
+      try {
+        const keepGoing = await handleSlash(line, { cwd, session, provider, rl });
+        if (!keepGoing) break;
+      } catch (err) {
+        console.log(error(err instanceof Error ? err.message : String(err)));
+      }
       continue;
     }
 
@@ -100,6 +112,45 @@ async function main() {
   rl.close();
 }
 
+async function checkCodexAtStartup(): Promise<void> {
+  const status = await withSpinner("checking Codex", checkCodexVersion);
+  if (status.kind === "current") {
+    console.log(dim(`codex: ${status.installed} (current)`));
+    return;
+  }
+
+  if (status.kind === "missing") {
+    console.log(error("Codex CLI was not found."));
+    console.log(dim(`Install it with: ${codexUpdateCommand()}`));
+    if (await askYesNo("Install Codex CLI now?")) await installCodexUpdate();
+    return;
+  }
+
+  if (status.kind === "unknown") {
+    const installed = status.installed ? ` ${status.installed}` : "";
+    console.log(dim(`codex${installed}: update check unavailable (${status.reason}); continuing`));
+    return;
+  }
+
+  console.log(amber(`Codex CLI update available: ${status.installed} -> ${status.latest}`));
+  console.log(dim(`command: ${codexUpdateCommand()}`));
+  if (await askYesNo("Update Codex CLI now?")) await installCodexUpdate();
+}
+
+async function installCodexUpdate(): Promise<void> {
+  const result = await withSpinner("updating Codex", updateCodex);
+  if (result.ok) {
+    const status = await checkCodexVersion();
+    const version = status.kind === "current" || status.kind === "outdated" ? ` ${status.installed}` : "";
+    console.log(amber(`Codex CLI${version} is ready.`));
+    return;
+  }
+
+  console.log(error("Codex CLI update failed."));
+  if (result.output) console.log(error(result.output));
+  console.log(dim(`Try manually: ${codexUpdateCommand()}`));
+}
+
 main().catch((err) => {
   console.error(error(err instanceof Error ? err.message : String(err)));
   process.exit(1);
@@ -114,6 +165,14 @@ function toEditPrompt(line: string): string | undefined {
   if (!match) return undefined;
   const [, path, instruction] = match;
   return `Edit ${path}. ${instruction}`;
+}
+
+function parseReasoningOption(value: string): string {
+  try {
+    return normalizeReasoningEffort(value);
+  } catch (err) {
+    throw new InvalidArgumentError(err instanceof Error ? err.message : String(err));
+  }
 }
 
 async function withSpinner<T>(label: string, task: () => Promise<T>): Promise<T> {

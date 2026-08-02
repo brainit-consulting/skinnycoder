@@ -3,6 +3,7 @@ import type { AgentAction, Change } from "./types.js";
 export class Session {
   private turns: Array<{ user: string; action: AgentAction; result: string }> = [];
   private changes: Change[] = [];
+  private scope: string[] = [];
 
   constructor(public readonly cwd: string) {}
 
@@ -23,6 +24,14 @@ export class Session {
     return [...this.changes];
   }
 
+  setScope(paths: string[]) {
+    this.scope = [...paths];
+  }
+
+  listScope(): string[] {
+    return [...this.scope];
+  }
+
   clear() {
     this.turns = [];
   }
@@ -33,12 +42,14 @@ export class Session {
     const actionChars = recent.reduce((total, turn) => total + JSON.stringify(turn.action).length, 0);
     const resultChars = recent.reduce((total, turn) => total + Math.min(turn.result.length, 1200), 0);
     const cwdChars = this.cwd.length;
-    const totalChars = cwdChars + userChars + actionChars + resultChars;
+    const scopeChars = this.scope.join(",").length;
+    const totalChars = cwdChars + scopeChars + userChars + actionChars + resultChars;
 
     return {
       retainedTurns: this.turns.length,
       modelTurns: recent.length,
       cwdChars,
+      scopeChars,
       userChars,
       actionChars,
       resultChars,
@@ -53,7 +64,7 @@ export class Session {
       action: turn.action,
       result: turn.result.slice(0, 1200)
     }));
-    return JSON.stringify({ cwd: this.cwd, recent }, null, 2);
+    return JSON.stringify({ cwd: this.cwd, scope: this.scope, recent }, null, 2);
   }
 }
 
