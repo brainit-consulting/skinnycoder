@@ -1,8 +1,8 @@
 import { createPatch } from "diff";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, resolve, relative, sep } from "node:path";
 import type { Session } from "./session.js";
-import type { AgentAction } from "./types.js";
+import type { AgentAction, Change, FileMutation } from "./types.js";
 import { amber, dim } from "./theme.js";
 
 type ToolContext = {
@@ -10,6 +10,8 @@ type ToolContext = {
   session: Session;
   dryRun: boolean;
 };
+
+type PlannedChange = Change & { file: string };
 
 export async function applyAction(action: AgentAction, ctx: ToolContext): Promise<string> {
   const scope = ctx.session.listScope();
@@ -23,20 +25,11 @@ export async function applyAction(action: AgentAction, ctx: ToolContext): Promis
     case "read_file":
       return readFilePage(ctx.cwd, action.path, scope, action.startLine, action.lineCount);
     case "create_file":
-      return writeChanged(ctx, action.path, null, action.content);
-    case "replace_in_file": {
-      const file = safePath(ctx.cwd, action.path, scope);
-      const before = await readFile(file, "utf8");
-      const index = before.indexOf(action.oldText);
-      if (index < 0) throw new Error(`oldText not found in ${action.path}`);
-      const after = before.slice(0, index) + action.newText + before.slice(index + action.oldText.length);
-      return writeChanged(ctx, action.path, before, after);
-    }
-    case "append_file": {
-      const file = safePath(ctx.cwd, action.path, scope);
-      const before = await readFile(file, "utf8");
-      return writeChanged(ctx, action.path, before, before + action.content);
-    }
+    case "replace_in_file":
+    case "append_file":
+      return applyMutations(ctx, [action], false);
+    case "patch_files":
+      return applyMutations(ctx, action.changes, true);
     case "run_command":
       return dim(`$ ${action.command}`);
   }
@@ -44,6 +37,7 @@ export async function applyAction(action: AgentAction, ctx: ToolContext): Promis
 
 export async function listFiles(cwd: string, path: string, scope: string[] = []): Promise<string> {
   const dir = safePath(cwd, path, scope);
+  await assertNoSymbolicPath(cwd, dir);
   const entries = await readdir(dir, { withFileTypes: true });
   return entries
     .slice(0, 80)
@@ -67,6 +61,7 @@ export async function readFilePage(
     throw new Error("read line count must be between 1 and 400");
   }
   const file = safePath(cwd, path, scope);
+  await assertNoSymbolicPath(cwd, file);
   const content = await readFile(file, "utf8");
   const lines = content.split(/\r?\n/);
   if (startLine > lines.length) throw new Error(`start line ${startLine} is beyond ${path} (${lines.length} lines)`);
@@ -95,14 +90,139 @@ export async function readFilePage(
   return amber([rendered, ...notices].filter(Boolean).join("\n"));
 }
 
-async function writeChanged(ctx: ToolContext, path: string, before: string | null, after: string): Promise<string> {
-  const file = safePath(ctx.cwd, path, ctx.session.listScope());
-  const patch = createPatch(path, before ?? "", after, "before", "after");
-  if (ctx.dryRun) return amber(patch);
-  await mkdir(dirname(file), { recursive: true });
-  await writeFile(file, after, "utf8");
-  ctx.session.addChange({ path, before, after });
-  return amber(`wrote ${path}`);
+async function applyMutations(ctx: ToolContext, mutations: FileMutation[], grouped: boolean): Promise<string> {
+  if (grouped && (mutations.length < 2 || mutations.length > 20)) {
+    throw new Error("patch_files requires between 2 and 20 file operations");
+  }
+  if (!grouped && mutations.length !== 1) throw new Error("single file actions require exactly one operation");
+  const changes = await planMutations(ctx.cwd, ctx.session.listScope(), mutations);
+  const preview = changes
+    .map((change) => createPatch(change.path, change.before ?? "", change.after, "before", "after"))
+    .join("\n");
+  if (grouped && preview.length > 60_000) {
+    throw new Error("grouped patch preview exceeds 60,000 characters; split it into smaller patch_files actions");
+  }
+  if (ctx.dryRun) return amber(preview);
+
+  const written: PlannedChange[] = [];
+  try {
+    for (const change of changes) {
+      await mkdir(dirname(change.file), { recursive: true });
+      await writeFile(change.file, change.after, "utf8");
+      written.push(change);
+    }
+  } catch (err) {
+    const rollbackErrors = await rollbackWrites(written);
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`file write failed and ${rollbackErrors.length ? "rollback was incomplete" : "was rolled back"}: ${detail}${rollbackErrors.length ? `; ${rollbackErrors.join("; ")}` : ""}`);
+  }
+
+  const recorded = changes.map(({ path, before, after }) => ({ path, before, after }));
+  if (grouped) ctx.session.addChangeSet(recorded);
+  else ctx.session.addChange(recorded[0]);
+  return amber(grouped
+    ? `wrote ${changes.length} files:\n${changes.map((change) => `- ${change.path}`).join("\n")}`
+    : `wrote ${changes[0].path}`);
+}
+
+async function planMutations(cwd: string, scope: string[], mutations: FileMutation[]): Promise<PlannedChange[]> {
+  const working = new Map<string, { path: string; file: string; before: string | null; current: string | null }>();
+
+  for (const mutation of mutations) {
+    const file = safePath(cwd, mutation.path, scope);
+    await assertNoSymbolicPath(cwd, file);
+    const key = process.platform === "win32" ? file.toLowerCase() : file;
+    let entry = working.get(key);
+    if (!entry) {
+      const before = await readOptional(file);
+      entry = { path: mutation.path, file, before, current: before };
+      working.set(key, entry);
+    }
+
+    if (mutation.type === "create_file") {
+      if (entry.current !== null) throw new Error(`create_file target already exists: ${mutation.path}`);
+      entry.current = mutation.content;
+      continue;
+    }
+    if (entry.current === null) throw new Error(`${mutation.type} target does not exist: ${mutation.path}`);
+    if (mutation.type === "append_file") {
+      entry.current += mutation.content;
+      continue;
+    }
+    if (!mutation.oldText) throw new Error(`oldText must not be empty in ${mutation.path}`);
+    const index = entry.current.indexOf(mutation.oldText);
+    if (index < 0) throw new Error(`oldText not found in ${mutation.path}`);
+    if (entry.current.indexOf(mutation.oldText, index + 1) >= 0) {
+      throw new Error(`oldText is ambiguous in ${mutation.path}; include more surrounding text`);
+    }
+    entry.current = entry.current.slice(0, index) + mutation.newText + entry.current.slice(index + mutation.oldText.length);
+  }
+
+  return [...working.values()].map((entry) => {
+    if (entry.current === null) throw new Error(`no content produced for ${entry.path}`);
+    if (entry.current === entry.before) throw new Error(`patch produces no change in ${entry.path}`);
+    return { path: entry.path, file: entry.file, before: entry.before, after: entry.current };
+  });
+}
+
+async function readOptional(file: string): Promise<string | null> {
+  try {
+    return await readFile(file, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
+}
+
+async function rollbackWrites(written: PlannedChange[]): Promise<string[]> {
+  const errors: string[] = [];
+  for (const change of [...written].reverse()) {
+    try {
+      if (change.before === null) await unlink(change.file);
+      else await writeFile(change.file, change.before, "utf8");
+    } catch (err) {
+      errors.push(`${change.path}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  return errors;
+}
+
+export async function undoLastChangeSet(cwd: string, session: Session): Promise<string | undefined> {
+  const changes = session.popChangeSet();
+  if (!changes) return undefined;
+
+  const planned: PlannedChange[] = [];
+  try {
+    for (const change of changes) {
+      const file = safePath(cwd, change.path);
+      await assertNoSymbolicPath(cwd, file);
+      planned.push({ ...change, file });
+    }
+    for (const change of planned) {
+      const current = await readOptional(change.file);
+      if (current !== change.after) throw new Error(`${change.path} changed after SkinnyCoder wrote it; undo refused`);
+    }
+
+    const undone: PlannedChange[] = [];
+    try {
+      for (const change of [...planned].reverse()) {
+        if (change.before === null) await unlink(change.file);
+        else await writeFile(change.file, change.before, "utf8");
+        undone.push(change);
+      }
+    } catch (err) {
+      for (const change of undone.reverse()) {
+        await mkdir(dirname(change.file), { recursive: true });
+        await writeFile(change.file, change.after, "utf8");
+      }
+      throw err;
+    }
+  } catch (err) {
+    session.addChangeSet(changes);
+    throw err;
+  }
+
+  return planned.map((change) => change.path).join(", ");
 }
 
 export function safePath(cwd: string, path: string, scope: string[] = []): string {
@@ -115,6 +235,22 @@ export function safePath(cwd: string, path: string, scope: string[] = []): strin
     throw new Error(`path is outside active scope: ${path}`);
   }
   return full;
+}
+
+async function assertNoSymbolicPath(cwd: string, candidate: string): Promise<void> {
+  const rel = relative(cwd, candidate);
+  if (!rel) return;
+  let current = resolve(cwd);
+  for (const segment of rel.split(sep)) {
+    current = resolve(current, segment);
+    try {
+      const stats = await lstat(current);
+      if (stats.isSymbolicLink()) throw new Error(`symbolic links and junctions are not allowed in file paths: ${relative(cwd, current)}`);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw err;
+    }
+  }
 }
 
 function isWithin(parent: string, candidate: string): boolean {

@@ -22,6 +22,7 @@ View the single-file demo page: [skinnycoder.html](./skinnycoder.html)
 - Keeps context small and local.
 - Asks approval before edits and shell commands.
 - Shows file diffs before applying changes.
+- Can preview and approve a related multi-file patch as one atomic write.
 - Tracks SkinnyCoder changes for `/changes` and `/undo`.
 - Can install and run allowlisted BrainIT workflows with `/start-an-app` and `/security-scanner`.
 - Checkpoints long skill workflows and resumes them without repeating approvals.
@@ -272,6 +273,21 @@ diff nor findings are retained in the conversation, and `/review` never applies
 fixes automatically. To keep startup bounded, at most 500 untracked entries are
 included in one review.
 
+## Grouped edits and undo
+
+For changes spanning two or more related files, the planner can return one
+`patch_files` action containing only `create_file`, `replace_in_file`, and
+`append_file` operations. SkinnyCoder validates every path and replacement,
+shows one combined diff, and asks once before writing. Shell commands can never
+be included and still require separate approval.
+
+Grouped writes are applied as one unit. A write failure rolls back files already
+written, and `/undo` reverses the entire group. Undo refuses to overwrite a file
+that changed after SkinnyCoder wrote it. Ambiguous replacement text is rejected
+instead of changing an arbitrary occurrence, and oversized grouped previews
+must be split into smaller reviewable patches. Local file tools also reject any
+path that traverses a symbolic link or Windows junction.
+
 ## Trusted skill workflows
 
 SkinnyCoder v0.2.0 includes two allowlisted workflow commands from
@@ -383,9 +399,14 @@ These actions require approval:
 - `create_file`
 - `replace_in_file`
 - `append_file`
+- `patch_files` (2-20 related file operations, one combined approval)
 - `run_command`
 
-The model proposes one compact JSON action at a time. SkinnyCoder owns local file writes, shell execution, approval, change tracking, and undo. Trusted skill workflows use the same action and approval boundary.
+The model proposes one compact JSON action at a time. A `patch_files` action can
+group related file operations, but it remains one bounded, fully previewed,
+atomic action. SkinnyCoder owns local file writes, shell execution, approval,
+change tracking, and undo. Trusted skill workflows use the same action and
+approval boundary.
 
 ## Context
 

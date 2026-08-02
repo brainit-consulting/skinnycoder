@@ -1,4 +1,4 @@
-import { stat, unlink, writeFile } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { join, relative } from "node:path";
@@ -6,7 +6,7 @@ import type { CodexProvider } from "./codexProvider.js";
 import type { Session } from "./session.js";
 import { TRUSTED_SKILLS, type SkillManager, type SkillStatus, type TrustedSkillName } from "./skillManager.js";
 import { formatShellResult, runShell } from "./shell.js";
-import { listFiles, readFilePage, safePath } from "./tools.js";
+import { listFiles, readFilePage, safePath, undoLastChangeSet } from "./tools.js";
 import { amber, dim, error, ok } from "./theme.js";
 import { openAboutPage } from "./about.js";
 import { collectReviewDiff } from "./review.js";
@@ -146,15 +146,12 @@ export async function handleSlash(line: string, ctx: SlashContext): Promise<bool
       console.log(ctx.session.listChanges().map((c, i) => `${i + 1}. ${c.path}`).join("\n") || dim("no skinnycoder changes"));
       return true;
     case "/undo": {
-      const change = ctx.session.popChange();
-      if (!change) {
+      const paths = await undoLastChangeSet(ctx.cwd, ctx.session);
+      if (!paths) {
         console.log(dim("nothing to undo"));
         return true;
       }
-      const file = safePath(ctx.cwd, change.path);
-      if (change.before === null) await unlink(file).catch(() => undefined);
-      else await writeFile(file, change.before, "utf8");
-      console.log(ok(`undid ${change.path}`));
+      console.log(ok(`undid ${paths}`));
       return true;
     }
     case "/clear":

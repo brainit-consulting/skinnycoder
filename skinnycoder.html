@@ -364,7 +364,7 @@
           <div class="flow-step"><span class="step-number">[01]</span><strong>Ask</strong><p>Give SkinnyCoder a focused task. Multiline pastes stay together as one request.</p></div>
           <div class="flow-step"><span class="step-number">[02]</span><strong>Delegate</strong><p>Codex returns one compact JSON action and durable skill state instead of a large agent framework.</p></div>
           <div class="flow-step"><span class="step-number">[03]</span><strong>Inspect</strong><p>Reads are paged with continuation commands. Diffs appear before writes. Scope keeps files bounded.</p></div>
-          <div class="flow-step"><span class="step-number">[04]</span><strong>Approve</strong><p>You authorize edits and commands; SkinnyCoder tracks changes for undo.</p></div>
+          <div class="flow-step"><span class="step-number">[04]</span><strong>Approve</strong><p>You authorize one complete diff; related file edits apply atomically and undo together.</p></div>
         </div>
       </section>
 
@@ -401,7 +401,7 @@
               <dt>/review</dt><dd>Review scoped uncommitted changes without retaining the diff.</dd>
               <dt>/diff</dt><dd>Show Git changes within the active scope.</dd>
               <dt>/changes</dt><dd>List files changed by SkinnyCoder.</dd>
-              <dt>/undo</dt><dd>Reverse the last SkinnyCoder file change.</dd>
+              <dt>/undo</dt><dd>Reverse the last single edit or atomic multi-file patch.</dd>
             </dl>
           </article>
 
@@ -446,6 +446,7 @@ skinnycoder --version</pre>
             <p><code>/run</code> output never enters model context. <code>/web</code> uses an ephemeral search and retains neither the query nor answer.</p>
             <p><code>/scope</code> stores only path names. SkinnyCoder sends at most four recent turns; active skills add capped state plus a content-free local action checkpoint and resume without repeating confirmed approvals.</p>
             <p>Trusted skills install only on first use and only after approval. Their workflows keep the same scope, diff, command, and write gates.</p>
+            <p>Related edits may arrive as one bounded <code>patch_files</code> diff. It rejects links and junctions, validates before writing, rolls back partial failures, and never includes shell commands.</p>
             <p>Shell commands are not constrained by file scope. Every command is previewed and requires your approval.</p>
           </div>
         </div>

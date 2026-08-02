@@ -2,7 +2,7 @@ import type { ActiveSkill, AgentAction, Change } from "./types.js";
 
 export class Session {
   private turns: Array<{ user: string; action: AgentAction; result: string }> = [];
-  private changes: Change[] = [];
+  private changeSets: Change[][] = [];
   private scope: string[] = [];
   private activeSkill: ActiveSkill | undefined;
 
@@ -14,15 +14,19 @@ export class Session {
   }
 
   addChange(change: Change) {
-    this.changes.push(change);
+    this.changeSets.push([change]);
   }
 
-  popChange(): Change | undefined {
-    return this.changes.pop();
+  addChangeSet(changes: Change[]) {
+    if (changes.length > 0) this.changeSets.push([...changes]);
+  }
+
+  popChangeSet(): Change[] | undefined {
+    return this.changeSets.pop();
   }
 
   listChanges(): Change[] {
-    return [...this.changes];
+    return this.changeSets.flatMap((changes) => changes);
   }
 
   setScope(paths: string[]) {
@@ -102,6 +106,18 @@ export class Session {
 function actionForContext(action: AgentAction): object {
   if (action.type === "skill_progress") {
     return { type: action.type, message: action.message, requiresInput: action.requiresInput };
+  }
+  if (action.type === "create_file" || action.type === "append_file") {
+    return { type: action.type, path: action.path, contentLength: action.content.length };
+  }
+  if (action.type === "replace_in_file") {
+    return { type: action.type, path: action.path, oldLength: action.oldText.length, newLength: action.newText.length };
+  }
+  if (action.type === "patch_files") {
+    return {
+      type: action.type,
+      changes: action.changes.map((change) => ({ type: change.type, path: change.path }))
+    };
   }
   if ("state" in action) {
     const { state: _state, ...withoutState } = action;

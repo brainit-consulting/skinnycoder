@@ -34,6 +34,15 @@ const ActionSchema: z.ZodType<AgentAction> = z.discriminatedUnion("type", [
   z.object({ type: z.literal("create_file"), path: z.string(), content: z.string(), state: z.string().max(3000).optional() }),
   z.object({ type: z.literal("replace_in_file"), path: z.string(), oldText: z.string(), newText: z.string(), state: z.string().max(3000).optional() }),
   z.object({ type: z.literal("append_file"), path: z.string(), content: z.string(), state: z.string().max(3000).optional() }),
+  z.object({
+    type: z.literal("patch_files"),
+    changes: z.array(z.discriminatedUnion("type", [
+      z.object({ type: z.literal("create_file"), path: z.string(), content: z.string() }),
+      z.object({ type: z.literal("replace_in_file"), path: z.string(), oldText: z.string(), newText: z.string() }),
+      z.object({ type: z.literal("append_file"), path: z.string(), content: z.string() })
+    ])).min(2).max(20),
+    state: z.string().max(3000).optional()
+  }),
   z.object({ type: z.literal("run_command"), command: z.string(), state: z.string().max(3000).optional() })
 ]);
 
@@ -115,9 +124,10 @@ export class CodexProvider {
     ] : [];
     const prompt = [
       "Skinnycoder planner. Return one JSON object only.",
-      "Actions: answer{message}, skill_progress{message,state,requiresInput}, complete_skill{message}, read_file{path,startLine?,lineCount?,state?}, list_files{path?,state?}, create_file{path,content,state?}, replace_in_file{path,oldText,newText,state?}, append_file{path,content,state?}, run_command{command,state?}.",
+      "Actions: answer{message}, skill_progress{message,state,requiresInput}, complete_skill{message}, read_file{path,startLine?,lineCount?,state?}, list_files{path?,state?}, create_file{path,content,state?}, replace_in_file{path,oldText,newText,state?}, append_file{path,content,state?}, patch_files{changes:[create_file|replace_in_file|append_file],state?}, run_command{command,state?}.",
       'Example: {"type":"answer","message":"done"}',
       "Use file actions for edits. Read/list before editing unknown code.",
+      "Use patch_files for 2-20 related file edits that should be previewed and approved atomically. Never put a shell command in patch_files.",
       "When Ctx.scope is non-empty, all file actions must stay within one of those paths.",
       `Host platform: ${process.platform}. Commands run through ${process.platform === "win32" ? "PowerShell with -NoProfile" : "the host shell"}.`,
       ...(process.platform === "win32" ? ["Use valid PowerShell syntax and do not assign to automatic or constant variables such as $HOME."] : []),
