@@ -2,16 +2,16 @@ import { stat, unlink, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { join, relative } from "node:path";
-import type { Interface } from "node:readline/promises";
 import type { CodexProvider } from "./codexProvider.js";
 import type { Session } from "./session.js";
 import { TRUSTED_SKILLS, type SkillManager, type SkillStatus, type TrustedSkillName } from "./skillManager.js";
 import { runShell } from "./shell.js";
-import { listFiles, readCapped, safePath } from "./tools.js";
+import { listFiles, readFilePage, safePath } from "./tools.js";
 import { amber, dim, error, ok } from "./theme.js";
 import { openAboutPage } from "./about.js";
 import { collectReviewDiff } from "./review.js";
 import { skinnyCoderVersion } from "./version.js";
+import type { PromptInput } from "./input.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -20,7 +20,7 @@ type SlashContext = {
   session: Session;
   provider: CodexProvider;
   skillManager: SkillManager;
-  rl: Interface;
+  input: PromptInput;
 };
 
 type SlashPrompt = { prompt: string };
@@ -60,7 +60,20 @@ export async function handleSlash(line: string, ctx: SlashContext): Promise<bool
       console.log(await listFiles(ctx.cwd, defaultScopedPath(ctx.session, arg), ctx.session.listScope()));
       return true;
     case "/read":
-      console.log(await readCapped(ctx.cwd, arg, ctx.session.listScope()));
+      if (!arg) {
+        console.log(dim("usage: /read <file> [--from <line>] [--lines <count>]"));
+        return true;
+      }
+      {
+        const request = parseReadCommand(arg);
+        console.log(await readFilePage(
+          ctx.cwd,
+          request.path,
+          ctx.session.listScope(),
+          request.startLine,
+          request.lineCount
+        ));
+      }
       return true;
     case "/run":
       if (!arg) {
@@ -68,7 +81,7 @@ export async function handleSlash(line: string, ctx: SlashContext): Promise<bool
         return true;
       }
       console.log(amber(`$ ${arg}`));
-      if (!await askYesNo(ctx.rl, "Run command?")) {
+      if (!await askYesNo(ctx.input, "Run command?")) {
         console.log(dim("skipped"));
         return true;
       }
@@ -182,7 +195,7 @@ async function activateSkill(ctx: SlashContext, name: TrustedSkillName, request:
     console.log(dim(skillStatusLine(status)));
     console.log(dim(`source: https://github.com/${TRUSTED_SKILLS[name].source}`));
     console.log(dim(`command: ${ctx.skillManager.installCommand(name)}`));
-    if (!await askYesNo(ctx.rl, `Install trusted ${name} skill for Codex?`)) {
+    if (!await askYesNo(ctx.input, `Install trusted ${name} skill for Codex?`)) {
       console.log(dim("skill installation skipped"));
       return true;
     }
@@ -252,7 +265,7 @@ function helpText(): string {
     "/security-scanner             Run an OWASP Top 10:2025 audit workflow",
     "/scope [paths|clear]          Show, set, or clear file boundaries",
     "/files [path]                 List files within the active scope",
-    "/read <file>                  Read a capped file preview within scope",
+    "/read <file> [--from N]       Read a paged file preview within scope",
     "/edit <file> <instruction>    Ask Codex to edit a file",
     "/run <command>                Preview, approve, and run a local command",
     "/web <query>                  Run an isolated web search with source links",
@@ -307,12 +320,35 @@ function defaultScopedPath(session: Session, arg: string): string {
   return ".";
 }
 
-async function askYesNo(rl: Interface, question: string): Promise<boolean> {
+async function askYesNo(input: PromptInput, question: string): Promise<boolean> {
   try {
-    const answer = (await rl.question(amber(`${question} [y/N] `))).trim().toLowerCase();
+    const answer = (await input.question(amber(`${question} [y/N] `))).trim().toLowerCase();
     return answer === "y" || answer === "yes";
   } catch (err) {
     console.log(error(err instanceof Error ? err.message : String(err)));
     return false;
   }
+}
+
+export function parseReadCommand(arg: string): { path: string; startLine: number; lineCount: number } {
+  const tokens = parseArguments(arg);
+  const path = tokens.shift();
+  if (!path) throw new Error("read requires a file path");
+  let startLine = 1;
+  let lineCount = 200;
+
+  while (tokens.length > 0) {
+    const option = tokens.shift();
+    const value = tokens.shift();
+    if ((option !== "--from" && option !== "--lines") || value === undefined) {
+      throw new Error("usage: /read <file> [--from <line>] [--lines <count>]");
+    }
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 1) throw new Error(`${option} must be a positive integer`);
+    if (option === "--from") startLine = parsed;
+    else lineCount = parsed;
+  }
+
+  if (lineCount > 400) throw new Error("--lines must not exceed 400");
+  return { path, startLine, lineCount };
 }

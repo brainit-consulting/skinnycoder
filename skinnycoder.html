@@ -361,9 +361,9 @@
       <section aria-labelledby="flow-title">
         <div class="section-heading"><span class="section-id">01</span><h2 id="flow-title">One action at a time</h2></div>
         <div class="flow">
-          <div class="flow-step"><span class="step-number">[01]</span><strong>Ask</strong><p>Give SkinnyCoder a focused coding task in plain language.</p></div>
+          <div class="flow-step"><span class="step-number">[01]</span><strong>Ask</strong><p>Give SkinnyCoder a focused task. Multiline pastes stay together as one request.</p></div>
           <div class="flow-step"><span class="step-number">[02]</span><strong>Delegate</strong><p>Codex returns one compact JSON action instead of a large agent framework.</p></div>
-          <div class="flow-step"><span class="step-number">[03]</span><strong>Inspect</strong><p>Reads are capped. Diffs appear before writes. Scope keeps files bounded.</p></div>
+          <div class="flow-step"><span class="step-number">[03]</span><strong>Inspect</strong><p>Reads are paged with continuation commands. Diffs appear before writes. Scope keeps files bounded.</p></div>
           <div class="flow-step"><span class="step-number">[04]</span><strong>Approve</strong><p>You authorize edits and commands; SkinnyCoder tracks changes for undo.</p></div>
         </div>
       </section>
@@ -387,7 +387,7 @@
             <dl class="commands">
               <dt>/scope [paths]</dt><dd>Enforce narrow file boundaries without preloading files.</dd>
               <dt>/files [path]</dt><dd>List up to 80 entries inside the active scope.</dd>
-              <dt>/read &lt;file&gt;</dt><dd>Display a capped local file preview.</dd>
+              <dt>/read &lt;file&gt; [--from N]</dt><dd>Display up to 400 lines with an exact continuation command.</dd>
               <dt>/context</dt><dd>Inspect retained context and recent token usage.</dd>
               <dt>/clear</dt><dd>Discard retained conversation turns.</dd>
             </dl>
@@ -396,7 +396,7 @@
           <article class="command-group">
             <h3>Build</h3>
             <dl class="commands">
-              <dt>/edit &lt;file&gt; ...</dt><dd>Ask Codex for a focused edit, then review its diff.</dd>
+              <dt>/edit &lt;file&gt; ...</dt><dd>Preserve explicit edit intent, create missing targets, then review the diff.</dd>
               <dt>/run &lt;command&gt;</dt><dd>Approve a direct local command without a model call.</dd>
               <dt>/review</dt><dd>Review scoped uncommitted changes without retaining the diff.</dd>
               <dt>/diff</dt><dd>Show Git changes within the active scope.</dd>

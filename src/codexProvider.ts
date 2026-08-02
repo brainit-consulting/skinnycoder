@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import type { ActiveSkill, AgentAction } from "./types.js";
 import { readCodexModelConfig, type CodexModelConfig } from "./codexModel.js";
+import { plannerIntentInstructions, type PlannerIntent } from "./intent.js";
 
 export type CodexUsage = {
   input_tokens?: number;
@@ -17,7 +18,12 @@ const ActionSchema: z.ZodType<AgentAction> = z.discriminatedUnion("type", [
   z.object({ type: z.literal("answer"), message: z.string() }),
   z.object({ type: z.literal("skill_progress"), message: z.string(), state: z.string().max(3000) }),
   z.object({ type: z.literal("complete_skill"), message: z.string() }),
-  z.object({ type: z.literal("read_file"), path: z.string() }),
+  z.object({
+    type: z.literal("read_file"),
+    path: z.string(),
+    startLine: z.number().int().positive().optional(),
+    lineCount: z.number().int().min(1).max(400).optional()
+  }),
   z.object({ type: z.literal("list_files"), path: z.string().optional() }),
   z.object({ type: z.literal("create_file"), path: z.string(), content: z.string() }),
   z.object({ type: z.literal("replace_in_file"), path: z.string(), oldText: z.string(), newText: z.string() }),
@@ -82,7 +88,12 @@ export class CodexProvider {
     return run("codex", ["login"], this.cwd, "");
   }
 
-  async nextAction(userPrompt: string, context: string, activeSkill?: ActiveSkill): Promise<AgentAction> {
+  async nextAction(
+    userPrompt: string,
+    context: string,
+    activeSkill?: ActiveSkill,
+    intent: PlannerIntent = { kind: "general" }
+  ): Promise<AgentAction> {
     const skillInstructions = activeSkill ? [
       `Active trusted skill: $${activeSkill.name}`,
       `Verified SKILL.md path: ${activeSkill.path}`,
@@ -94,10 +105,11 @@ export class CodexProvider {
     ] : [];
     const prompt = [
       "Skinnycoder planner. Return one JSON object only.",
-      "Actions: answer{message}, skill_progress{message,state}, complete_skill{message}, read_file{path}, list_files{path?}, create_file{path,content}, replace_in_file{path,oldText,newText}, append_file{path,content}, run_command{command}.",
+      "Actions: answer{message}, skill_progress{message,state}, complete_skill{message}, read_file{path,startLine?,lineCount?}, list_files{path?}, create_file{path,content}, replace_in_file{path,oldText,newText}, append_file{path,content}, run_command{command}.",
       'Example: {"type":"answer","message":"done"}',
       "Use file actions for edits. Read/list before editing unknown code.",
       "When Ctx.scope is non-empty, all file actions must stay within one of those paths.",
+      ...plannerIntentInstructions(intent),
       ...skillInstructions,
       `Effective Codex model: ${this.getModel()}. If asked which model is in use, answer with this exact value.`,
       `Effective reasoning effort: ${this.getReasoningEffort()}. If asked which reasoning effort is in use, answer with this exact value.`,

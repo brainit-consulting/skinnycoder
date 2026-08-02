@@ -21,7 +21,7 @@ export async function applyAction(action: AgentAction, ctx: ToolContext): Promis
     case "list_files":
       return listFiles(ctx.cwd, action.path ?? ".", scope);
     case "read_file":
-      return readCapped(ctx.cwd, action.path, scope);
+      return readFilePage(ctx.cwd, action.path, scope, action.startLine, action.lineCount);
     case "create_file":
       return writeChanged(ctx, action.path, null, action.content);
     case "replace_in_file": {
@@ -52,10 +52,47 @@ export async function listFiles(cwd: string, path: string, scope: string[] = [])
 }
 
 export async function readCapped(cwd: string, path: string, scope: string[] = []): Promise<string> {
+  return readFilePage(cwd, path, scope);
+}
+
+export async function readFilePage(
+  cwd: string,
+  path: string,
+  scope: string[] = [],
+  startLine = 1,
+  lineCount = 200
+): Promise<string> {
+  if (!Number.isInteger(startLine) || startLine < 1) throw new Error("read start line must be a positive integer");
+  if (!Number.isInteger(lineCount) || lineCount < 1 || lineCount > 400) {
+    throw new Error("read line count must be between 1 and 400");
+  }
   const file = safePath(cwd, path, scope);
   const content = await readFile(file, "utf8");
-  const capped = content.length > 12000 ? `${content.slice(0, 12000)}\n...[truncated]` : content;
-  return amber(capped);
+  const lines = content.split(/\r?\n/);
+  if (startLine > lines.length) throw new Error(`start line ${startLine} is beyond ${path} (${lines.length} lines)`);
+
+  const requested = lines.slice(startLine - 1, startLine - 1 + lineCount);
+  let shown = requested;
+  let rendered = shown.join("\n");
+  while (shown.length > 1 && rendered.length > 12_000) {
+    shown = shown.slice(0, -1);
+    rendered = shown.join("\n");
+  }
+  let longLineCapped = false;
+  if (rendered.length > 12_000) {
+    rendered = rendered.slice(0, 12_000);
+    longLineCapped = true;
+  }
+
+  const lastShownLine = startLine + shown.length - 1;
+  const hasMore = lastShownLine < lines.length;
+  const notices: string[] = [];
+  if (longLineCapped) notices.push(`[line ${startLine} was capped at 12,000 characters]`);
+  if (hasMore) {
+    const quotedPath = /\s/.test(path) ? JSON.stringify(path) : path;
+    notices.push(`[showing lines ${startLine}-${lastShownLine} of ${lines.length}; continue with /read ${quotedPath} --from ${lastShownLine + 1} --lines ${lineCount}]`);
+  }
+  return amber([rendered, ...notices].filter(Boolean).join("\n"));
 }
 
 async function writeChanged(ctx: ToolContext, path: string, before: string | null, after: string): Promise<string> {

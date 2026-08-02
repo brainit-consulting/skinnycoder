@@ -3,15 +3,18 @@ import { Command, InvalidArgumentError } from "commander";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { resolve } from "node:path";
+import { stat } from "node:fs/promises";
 import { runShell } from "./shell.js";
 import { Session } from "./session.js";
 import { amber, animatedLogo, dim, error, promptText, startupInfo } from "./theme.js";
 import { CodexProvider, normalizeReasoningEffort } from "./codexProvider.js";
 import { checkCodexVersion, codexUpdateCommand, updateCodex } from "./codexVersion.js";
 import { handleSlash } from "./slash.js";
-import { applyAction } from "./tools.js";
+import { applyAction, safePath } from "./tools.js";
 import { skinnyCoderVersion } from "./version.js";
 import { SkillManager } from "./skillManager.js";
+import { PromptInput } from "./input.js";
+import { parseEditCommand, type PlannerIntent } from "./intent.js";
 
 const program = new Command()
   .name("skinnycoder")
@@ -32,9 +35,10 @@ const session = new Session(cwd);
 const provider = new CodexProvider(cwd, opts.model, opts.reasoning);
 const skillManager = new SkillManager(cwd, "codex");
 const rl = createInterface({ input, output });
+const promptInput = new PromptInput(rl, output);
 
 async function askYesNo(question: string): Promise<boolean> {
-  const answer = (await rl.question(amber(`${question} [y/N] `))).trim().toLowerCase();
+  const answer = (await promptInput.question(amber(`${question} [y/N] `))).trim().toLowerCase();
   return answer === "y" || answer === "yes";
 }
 
@@ -47,22 +51,30 @@ async function main() {
   while (true) {
     let line: string;
     try {
-      line = (await rl.question(promptText("> "))).trim();
+      line = (await promptInput.question(promptText("> "), { multilinePaste: true })).trim();
     } catch {
       break;
     }
     if (!line) continue;
 
+    let intent: PlannerIntent = { kind: "general" };
     if (line.startsWith("/edit")) {
-      const editPrompt = toEditPrompt(line);
-      if (!editPrompt) {
-        console.log(dim("usage: /edit <file> <instruction>"));
+      try {
+        const edit = parseEditCommand(line);
+        if (!edit) {
+          console.log(dim("usage: /edit <file> <instruction>"));
+          continue;
+        }
+        const target = safePath(cwd, edit.path, session.listScope());
+        intent = { kind: "edit", path: edit.path, targetExists: await pathExists(target) };
+        line = `Edit ${JSON.stringify(edit.path)}. ${edit.instruction}`;
+      } catch (err) {
+        console.log(error(err instanceof Error ? err.message : String(err)));
         continue;
       }
-      line = editPrompt;
     } else if (line.startsWith("/")) {
       try {
-        const slashResult = await handleSlash(line, { cwd, session, provider, skillManager, rl });
+        const slashResult = await handleSlash(line, { cwd, session, provider, skillManager, input: promptInput });
         if (typeof slashResult === "boolean") {
           if (!slashResult) break;
           continue;
@@ -79,7 +91,12 @@ async function main() {
       const stepLimit = session.getActiveSkill() ? 24 : 6;
       let settled = false;
       for (let step = 0; step < stepLimit; step++) {
-        const action = await withSpinner("thinking", () => provider.nextAction(nextPrompt, session.contextForModel(), session.getActiveSkill()));
+        const action = await withSpinner("thinking", () => provider.nextAction(
+          nextPrompt,
+          session.contextForModel(),
+          session.getActiveSkill(),
+          intent
+        ));
         if (action.type === "answer") {
           console.log(amber(action.message));
           session.addTurn(nextPrompt, action, action.message);
@@ -109,7 +126,6 @@ async function main() {
           const result = await applyAction(action, { cwd, session, dryRun: false });
           console.log(result);
           session.addTurn(nextPrompt, action, result);
-          if (action.type === "read_file" && isDisplayOnlyRead(nextPrompt)) break;
           nextPrompt = "Continue using the tool result. Return the next single JSON action.";
           continue;
         }
@@ -186,15 +202,14 @@ main().catch((err) => {
   process.exit(1);
 });
 
-function isDisplayOnlyRead(prompt: string): boolean {
-  return /\b(display|show|print|cat|read)\b/i.test(prompt) && /\b(contents?|file)\b/i.test(prompt);
-}
-
-function toEditPrompt(line: string): string | undefined {
-  const match = line.match(/^\/edit\s+(\S+)\s+(.+)$/);
-  if (!match) return undefined;
-  const [, path, instruction] = match;
-  return `Edit ${path}. ${instruction}`;
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw err;
+  }
 }
 
 function parseReasoningOption(value: string): string {

@@ -17,6 +17,7 @@ View the single-file demo page: [skinnycoder.html](./skinnycoder.html)
 ## What It Does
 
 - Starts an amber command-line coding session.
+- Keeps multiline terminal pastes together as one request.
 - Uses `codex exec` as the first provider.
 - Keeps context small and local.
 - Asks approval before edits and shell commands.
@@ -175,9 +176,10 @@ skinnycoder --no-update-check
 /scope [paths]     Limit file operations to one or more paths
 /scope clear       Restore the whole working directory as the file scope
 /files [path]      List files
-/read <file>       Read a capped file preview
+/read <file> [--from N] [--lines N]
+                   Read up to 400 lines and print an exact continuation command
 /edit <file> <instruction>
-                   Ask Codex to edit a file, then preview and approve the change
+                   Make a focused edit; missing targets can be created
 /run <command>     Preview, approve, and run a local shell command
 /web <query>       Run an isolated web search with source links
 /review            Review scoped uncommitted changes
@@ -191,6 +193,23 @@ skinnycoder --no-update-check
 `/about` opens the packaged [SkinnyCoder demo page](./skinnycoder.html) in the
 operating system's default browser. It runs locally without a model call and
 does not add anything to conversation context.
+
+Multiline text pasted at the main prompt is submitted as one request. It is not
+queued as several later prompts. `/edit` also retains structured edit intent,
+so wording such as `keep the file read-only` cannot accidentally turn an edit
+into a display-only request. Quote target paths that contain spaces.
+
+Read large files in bounded pages:
+
+```text
+/read README.md
+/read README.md --from 201 --lines 100
+/read "docs/long file.md" --from 401 --lines 200
+```
+
+When more content remains, SkinnyCoder prints the exact command for the next
+page. Planner `read_file` actions use the same 1-based line paging and never
+silently hide the remainder.
 
 ## Run, scope, and web search
 
