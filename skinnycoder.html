@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="SkinnyCoder v0.1.0 — a lean, local coding harness powered by the Codex CLI." />
+  <meta name="description" content="SkinnyCoder v0.2.0 — a lean, local coding harness powered by the Codex CLI, with trusted BrainIT skill workflows." />
   <meta name="color-scheme" content="dark" />
   <link rel="icon" href="data:," />
-  <title>SkinnyCoder v0.1.0</title>
+  <title>SkinnyCoder v0.2.0</title>
   <style>
     :root {
       --ink: #ffb000;
@@ -348,7 +348,7 @@
 
         <aside class="identity" aria-label="SkinnyCoder status">
           <dl>
-            <dt>Version</dt><dd>v0.1.0</dd>
+            <dt>Version</dt><dd>v0.2.0</dd>
             <dt>Provider</dt><dd>Codex CLI</dd>
             <dt>Auth</dt><dd>Codex login / subscription</dd>
             <dt>Context</dt><dd>Last 4 model turns</dd>
@@ -398,9 +398,20 @@
             <dl class="commands">
               <dt>/edit &lt;file&gt; ...</dt><dd>Ask Codex for a focused edit, then review its diff.</dd>
               <dt>/run &lt;command&gt;</dt><dd>Approve a direct local command without a model call.</dd>
+              <dt>/review</dt><dd>Review scoped uncommitted changes without retaining the diff.</dd>
               <dt>/diff</dt><dd>Show Git changes within the active scope.</dd>
               <dt>/changes</dt><dd>List files changed by SkinnyCoder.</dd>
               <dt>/undo</dt><dd>Reverse the last SkinnyCoder file change.</dd>
+            </dl>
+          </article>
+
+          <article class="command-group">
+            <h3>Guided skills</h3>
+            <dl class="commands">
+              <dt>/skills</dt><dd>Check trusted BrainIT workflow installation and active status.</dd>
+              <dt>/start-an-app [idea]</dt><dd>Interview, agree a build sheet, then scaffold in a new folder.</dd>
+              <dt>/security-scanner</dt><dd>Run an OWASP Top 10:2025 audit of the current project.</dd>
+              <dt>/skills stop</dt><dd>Leave the active workflow without uninstalling it.</dd>
             </dl>
           </article>
 
@@ -432,7 +443,8 @@ skinnycoder --version</pre>
           <div class="note-panel">
             <h3>What stays skinny</h3>
             <p><code>/run</code> output never enters model context. <code>/web</code> uses an ephemeral search and retains neither the query nor answer.</p>
-            <p><code>/scope</code> stores only path names. SkinnyCoder sends at most four recent turns and caps file and tool results.</p>
+            <p><code>/scope</code> stores only path names. SkinnyCoder sends at most four recent turns; active skills add only a capped workflow summary.</p>
+            <p>Trusted skills install only on first use and only after approval. Their workflows keep the same scope, diff, command, and write gates.</p>
             <p>Shell commands are not constrained by file scope. Every command is previewed and requires your approval.</p>
           </div>
         </div>

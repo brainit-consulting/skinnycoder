@@ -11,6 +11,7 @@ import { checkCodexVersion, codexUpdateCommand, updateCodex } from "./codexVersi
 import { handleSlash } from "./slash.js";
 import { applyAction } from "./tools.js";
 import { skinnyCoderVersion } from "./version.js";
+import { SkillManager } from "./skillManager.js";
 
 const program = new Command()
   .name("skinnycoder")
@@ -29,6 +30,7 @@ const opts = program.opts<{ cwd: string; model?: string; reasoning?: string; log
 const cwd = resolve(opts.cwd);
 const session = new Session(cwd);
 const provider = new CodexProvider(cwd, opts.model, opts.reasoning);
+const skillManager = new SkillManager(cwd, "codex");
 const rl = createInterface({ input, output });
 
 async function askYesNo(question: string): Promise<boolean> {
@@ -61,21 +63,46 @@ async function main() {
       line = editPrompt;
     } else if (line.startsWith("/")) {
       try {
-        const keepGoing = await handleSlash(line, { cwd, session, provider, rl });
-        if (!keepGoing) break;
+        const slashResult = await handleSlash(line, { cwd, session, provider, skillManager, rl });
+        if (typeof slashResult === "boolean") {
+          if (!slashResult) break;
+          continue;
+        }
+        line = slashResult.prompt;
       } catch (err) {
         console.log(error(err instanceof Error ? err.message : String(err)));
+        continue;
       }
-      continue;
     }
 
     try {
       let nextPrompt = line;
-      for (let step = 0; step < 6; step++) {
-        const action = await withSpinner("thinking", () => provider.nextAction(nextPrompt, session.contextForModel()));
+      const stepLimit = session.getActiveSkill() ? 24 : 6;
+      let settled = false;
+      for (let step = 0; step < stepLimit; step++) {
+        const action = await withSpinner("thinking", () => provider.nextAction(nextPrompt, session.contextForModel(), session.getActiveSkill()));
         if (action.type === "answer") {
           console.log(amber(action.message));
           session.addTurn(nextPrompt, action, action.message);
+          settled = true;
+          break;
+        }
+
+        if (action.type === "skill_progress") {
+          session.updateActiveSkillState(action.state);
+          console.log(amber(action.message));
+          session.addTurn(nextPrompt, action, action.message);
+          settled = true;
+          break;
+        }
+
+        if (action.type === "complete_skill") {
+          console.log(amber(action.message));
+          session.addTurn(nextPrompt, action, action.message);
+          const completed = session.getActiveSkill();
+          session.setActiveSkill(undefined);
+          if (completed) console.log(dim(`skill complete: ${completed.name}`));
+          settled = true;
           break;
         }
 
@@ -94,6 +121,7 @@ async function main() {
         if (!approved) {
           console.log(dim("skipped"));
           session.addTurn(nextPrompt, { type: "answer", message: "User rejected action." }, "rejected");
+          settled = true;
           break;
         }
 
@@ -103,6 +131,9 @@ async function main() {
         console.log(result);
         session.addTurn(nextPrompt, action, result);
         nextPrompt = "Continue after the approved action. Return answer if done, otherwise the next single JSON action.";
+      }
+      if (!settled && session.getActiveSkill()) {
+        console.log(dim(`workflow paused after ${stepLimit} actions; type continue to resume ${session.getActiveSkill()?.name}`));
       }
     } catch (err) {
       console.log(error(err instanceof Error ? err.message : String(err)));

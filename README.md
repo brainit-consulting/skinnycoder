@@ -22,6 +22,7 @@ View the single-file demo page: [skinnycoder.html](./skinnycoder.html)
 - Asks approval before edits and shell commands.
 - Shows file diffs before applying changes.
 - Tracks SkinnyCoder changes for `/changes` and `/undo`.
+- Can install and run allowlisted BrainIT workflows with `/start-an-app` and `/security-scanner`.
 - Includes a smoke test for the basic CLI flow.
 
 ## Why It Starts Lean
@@ -117,6 +118,7 @@ Smoke test:
 
 ```bash
 npm run test:smoke
+npm run test:skills
 ```
 
 ## Usage
@@ -157,14 +159,19 @@ skinnycoder --no-update-check
 
 ```text
 /help              Show commands
-/about             Open the local SkinnyCoder v0.1.0 page
+/about             Open the local SkinnyCoder v0.2.0 page
 /login             Run Codex login
 /model [name]      Show or override the Codex model for this session
 /model default     Return to the model selected by Codex configuration
 /reasoning [level] Show or override reasoning for this session
 /reasoning default Return to reasoning selected by Codex configuration
-/status            Show cwd, model, and change count
+/status            Show cwd, model, active skill, scope, and change count
 /context           Show retained context and last Codex token usage
+/skills            Show trusted BrainIT skill installation and workflow status
+/skills stop       Stop the active skill workflow
+/start-an-app [idea]
+                   Interview, agree a build sheet, and scaffold a new app
+/security-scanner  Run an OWASP Top 10:2025 audit workflow
 /scope [paths]     Limit file operations to one or more paths
 /scope clear       Restore the whole working directory as the file scope
 /files [path]      List files
@@ -173,6 +180,7 @@ skinnycoder --no-update-check
                    Ask Codex to edit a file, then preview and approve the change
 /run <command>     Preview, approve, and run a local shell command
 /web <query>       Run an isolated web search with source links
+/review            Review scoped uncommitted changes
 /diff              Show git diff
 /changes           Show files changed by SkinnyCoder
 /undo              Undo the last SkinnyCoder file change
@@ -222,6 +230,70 @@ Run a current, one-shot web search through Codex:
 Web searches use an ephemeral `codex exec --search` call and request a concise
 answer with direct source links. Neither the query, raw search activity, nor the
 answer is added to SkinnyCoder's retained conversation context.
+
+## Review changes
+
+Review staged, unstaged, and readable untracked changes within the active
+`/scope`:
+
+```text
+/review
+```
+
+SkinnyCoder assembles and caps the Git diff locally, then sends only that diff
+to an ephemeral, read-only Codex call. Findings are ordered by severity and
+include file and line references when available. Binary files, symbolic links,
+and other non-regular files are represented only by filename notes. Neither the
+diff nor findings are retained in the conversation, and `/review` never applies
+fixes automatically. To keep startup bounded, at most 500 untracked entries are
+included in one review.
+
+## Trusted skill workflows
+
+SkinnyCoder v0.2.0 includes two allowlisted workflow commands from
+[BrainIT Consulting's DreamForge agent skills](https://github.com/brainit-consulting/DreamForgeSoftwareAgentSkills):
+
+```text
+/start-an-app
+/start-an-app a booking system for my salon
+/security-scanner
+/skills
+/skills stop
+```
+
+`/start-an-app` is intended for a new or empty working folder. It interviews
+the user one topic at a time, reads the proposed build sheet back, and waits for
+approval before scaffolding. If SkinnyCoder detects an existing project marker
+such as `package.json` or `src/`, it stops rather than merging a new scaffold
+into that project.
+
+`/security-scanner` applies the OWASP Top 10:2025 workflow to the current
+project. Reconnaissance stays read-only; cloning a target, running a command, or
+writing the final report still passes through SkinnyCoder's existing approval
+flow.
+
+On first use, SkinnyCoder checks the active provider's global skill directory.
+If the trusted skill is missing or its recorded source cannot be verified, it
+shows the exact install command and asks before running it. For Codex the
+equivalent command is:
+
+```bash
+npx --yes skills@1.5.21 add brainit-consulting/DreamForgeSoftwareAgentSkills --skill start-an-app --global --agent codex --yes
+```
+
+The installer runs with anonymous Skills CLI telemetry disabled. Skill installs
+never happen during ordinary startup. SkinnyCoder accepts installations from
+the published DreamForge repository and the maintained
+[`brainit-consulting/skills`](https://github.com/brainit-consulting/skills)
+source fork.
+
+An active workflow is named in `/status` and `/context`. SkinnyCoder explicitly
+reloads that skill for each fresh planner call while retaining only its normal
+four recent turns plus a capped 3,000-character workflow state containing
+confirmed requirements, decisions, current phase, and the pending question. A
+workflow can finish itself with `complete_skill`, or the user can leave it with
+`/skills stop`. Skill instructions never override the active cwd, `/scope`, diff
+preview, or approval rules.
 
 ## Model selection
 
@@ -284,7 +356,7 @@ These actions require approval:
 - `append_file`
 - `run_command`
 
-The model proposes one compact JSON action at a time. SkinnyCoder owns local file writes, shell execution, approval, change tracking, and undo.
+The model proposes one compact JSON action at a time. SkinnyCoder owns local file writes, shell execution, approval, change tracking, and undo. Trusted skill workflows use the same action and approval boundary.
 
 ## Context
 
@@ -298,4 +370,4 @@ This shows the local retained context estimate and, after a model call, the last
 
 ## Current Scope
 
-This is intentionally small. It is not trying to be a full IDE, plugin framework, or long-context project indexer. The goal is a simple, inspectable coding loop that can grow only where needed.
+This is intentionally small. It is not trying to be a full IDE, a general skill marketplace, or a long-context project indexer. The goal is a simple, inspectable coding loop that grows through explicit, allowlisted workflows where they add clear value.

@@ -1,14 +1,17 @@
-import { unlink, writeFile } from "node:fs/promises";
+import { stat, unlink, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { relative } from "node:path";
+import { join, relative } from "node:path";
 import type { Interface } from "node:readline/promises";
 import type { CodexProvider } from "./codexProvider.js";
 import type { Session } from "./session.js";
+import { TRUSTED_SKILLS, type SkillManager, type SkillStatus, type TrustedSkillName } from "./skillManager.js";
 import { runShell } from "./shell.js";
 import { listFiles, readCapped, safePath } from "./tools.js";
 import { amber, dim, error, ok } from "./theme.js";
 import { openAboutPage } from "./about.js";
+import { collectReviewDiff } from "./review.js";
+import { skinnyCoderVersion } from "./version.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -16,10 +19,13 @@ type SlashContext = {
   cwd: string;
   session: Session;
   provider: CodexProvider;
+  skillManager: SkillManager;
   rl: Interface;
 };
 
-export async function handleSlash(line: string, ctx: SlashContext): Promise<boolean> {
+type SlashPrompt = { prompt: string };
+
+export async function handleSlash(line: string, ctx: SlashContext): Promise<boolean | SlashPrompt> {
   const [cmd, ...rest] = line.split(/\s+/);
   const arg = rest.join(" ");
   switch (cmd) {
@@ -45,7 +51,7 @@ export async function handleSlash(line: string, ctx: SlashContext): Promise<bool
       if (!arg) console.log(dim("usage: /reasoning <low|medium|high|xhigh|max|ultra> | /reasoning default"));
       return true;
     case "/status":
-      console.log(dim(`cwd: ${ctx.cwd}\nmodel: ${ctx.provider.describeModel()}\nscope: ${formatScope(ctx.session)}\nchanges: ${ctx.session.listChanges().length}`));
+      console.log(dim(`cwd: ${ctx.cwd}\nmodel: ${ctx.provider.describeModel()}\nactive skill: ${ctx.session.getActiveSkill()?.name ?? "none"}\nscope: ${formatScope(ctx.session)}\nchanges: ${ctx.session.listChanges().length}`));
       return true;
     case "/context":
       console.log(formatContext(ctx));
@@ -80,6 +86,33 @@ export async function handleSlash(line: string, ctx: SlashContext): Promise<bool
       console.log(amber(await ctx.provider.webSearch(arg)));
       console.log(dim("web query and answer were not retained in conversation context"));
       return true;
+    case "/review": {
+      const diff = await collectReviewDiff(ctx.cwd, ctx.session.listScope());
+      if (!diff) {
+        console.log(dim("no uncommitted changes to review within the active scope"));
+        return true;
+      }
+      console.log(dim(`reviewing ${diff.length.toLocaleString()} characters of scoped diff...`));
+      console.log(amber(await ctx.provider.reviewDiff(diff)));
+      console.log(dim("review diff and findings were not retained in conversation context"));
+      return true;
+    }
+    case "/skills":
+      if (arg === "stop") {
+        const active = ctx.session.getActiveSkill();
+        ctx.session.setActiveSkill(undefined);
+        console.log(dim(active ? `stopped skill: ${active.name}` : "no active skill"));
+        return true;
+      }
+      console.log(await formatSkills(ctx));
+      return true;
+    case "/start-an-app":
+      if (await hasExistingProject(ctx.cwd)) {
+        throw new Error("/start-an-app requires a new or empty folder; launch SkinnyCoder in the folder where the new app should be created");
+      }
+      return activateSkill(ctx, "start-an-app", arg || "Begin the workflow and ask the first discovery question.");
+    case "/security-scanner":
+      return activateSkill(ctx, "security-scanner", arg || "Begin a security scan of the current working directory. Start with read-only reconnaissance.");
     case "/diff":
       console.log(await gitDiff(ctx.cwd, ctx.session.listScope()));
       return true;
@@ -116,9 +149,11 @@ function formatContext(ctx: SlashContext): string {
   const usage = ctx.provider.getLastUsage();
   const lines = [
     "skinnycoder retained context",
+    `  active skill: ${ctx.session.getActiveSkill()?.name ?? "none"}`,
     `  retained turns: ${stats.retainedTurns} (${stats.modelTurns} sent to Codex)`,
     `  cwd: ${stats.cwdChars} chars`,
     `  scope: ${stats.scopeChars} chars (${formatScope(ctx.session)})`,
+    `  skill state: ${stats.skillStateChars} chars`,
     `  user prompts: ${stats.userChars} chars`,
     `  action json: ${stats.actionChars} chars`,
     `  tool results: ${stats.resultChars} chars`,
@@ -141,6 +176,59 @@ function formatContext(ctx: SlashContext): string {
   return dim(lines.join("\n"));
 }
 
+async function activateSkill(ctx: SlashContext, name: TrustedSkillName, request: string): Promise<boolean | SlashPrompt> {
+  let status = await ctx.skillManager.status(name);
+  if (status.kind !== "installed") {
+    console.log(dim(skillStatusLine(status)));
+    console.log(dim(`source: https://github.com/${TRUSTED_SKILLS[name].source}`));
+    console.log(dim(`command: ${ctx.skillManager.installCommand(name)}`));
+    if (!await askYesNo(ctx.rl, `Install trusted ${name} skill for Codex?`)) {
+      console.log(dim("skill installation skipped"));
+      return true;
+    }
+    console.log(dim(`installing ${name}...`));
+    status = await ctx.skillManager.install(name);
+  }
+
+  if (!status.path) throw new Error(`${name} is installed but its SKILL.md path is unavailable`);
+  ctx.session.setActiveSkill({
+    name,
+    path: status.path,
+    source: TRUSTED_SKILLS[name].source
+  });
+  console.log(ok(`active skill: ${name}`));
+  return { prompt: request };
+}
+
+async function formatSkills(ctx: SlashContext): Promise<string> {
+  const statuses = await ctx.skillManager.list();
+  const lines = [
+    `trusted skills (active: ${ctx.session.getActiveSkill()?.name ?? "none"})`,
+    ...statuses.map((status) => `  ${status.skill.command.padEnd(20)} ${skillStatusLine(status)}`),
+    "  /skills stop         Stop the active skill workflow"
+  ];
+  return dim(lines.join("\n"));
+}
+
+function skillStatusLine(status: SkillStatus): string {
+  if (status.kind === "installed") return `installed (${status.path})`;
+  if (status.kind === "missing") return "not installed for Codex";
+  return `${status.kind}: ${status.detail ?? status.path ?? "verification failed"}`;
+}
+
+async function hasExistingProject(cwd: string): Promise<boolean> {
+  const indicators = ["package.json", "requirements.txt", "go.mod", "pom.xml", "Cargo.toml", "Gemfile", "src", "app", "lib"];
+  for (const indicator of indicators) {
+    try {
+      await stat(join(cwd, indicator));
+      return true;
+    } catch {
+      // Continue looking for a real project marker.
+    }
+  }
+  return false;
+}
+
 async function gitDiff(cwd: string, scope: string[]): Promise<string> {
   try {
     const { stdout } = await execFileAsync("git", ["diff", "--", ...(scope.length ? scope : ["."])], { cwd });
@@ -153,18 +241,22 @@ async function gitDiff(cwd: string, scope: string[]): Promise<string> {
 function helpText(): string {
   return [
     "/help                         Show commands",
-    "/about                        Open the SkinnyCoder v0.1.0 page",
+    `/about                        Open the SkinnyCoder v${skinnyCoderVersion} page`,
     "/login                        Run Codex login",
     "/model [name|default]         Show, override, or reset the Codex model",
     "/reasoning [level|default]    Show, override, or reset reasoning effort",
-    "/status                       Show cwd, model, scope, and change count",
+    "/status                       Show cwd, model, active skill, scope, and changes",
     "/context                      Show retained context and last token usage",
+    "/skills [stop]                Show trusted skills or stop the active workflow",
+    "/start-an-app [idea]          Interview, plan, and scaffold a new app",
+    "/security-scanner             Run an OWASP Top 10:2025 audit workflow",
     "/scope [paths|clear]          Show, set, or clear file boundaries",
     "/files [path]                 List files within the active scope",
     "/read <file>                  Read a capped file preview within scope",
     "/edit <file> <instruction>    Ask Codex to edit a file",
     "/run <command>                Preview, approve, and run a local command",
     "/web <query>                  Run an isolated web search with source links",
+    "/review                       Review scoped uncommitted changes",
     "/diff                         Show git diff within the active scope",
     "/changes                      Show files changed by SkinnyCoder",
     "/undo                         Undo the last SkinnyCoder file change",

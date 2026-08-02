@@ -15,6 +15,8 @@ export async function applyAction(action: AgentAction, ctx: ToolContext): Promis
   const scope = ctx.session.listScope();
   switch (action.type) {
     case "answer":
+    case "skill_progress":
+    case "complete_skill":
       return action.message;
     case "list_files":
       return listFiles(ctx.cwd, action.path ?? ".", scope);

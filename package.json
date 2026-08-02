@@ -1,6 +1,6 @@
 {
   "name": "skinnycoder",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A lean amber-terminal coding CLI that delegates thinking to Codex and keeps local edits explicit.",
   "type": "module",
   "repository": {
@@ -20,6 +20,8 @@
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
     "prepack": "npm run build",
+    "test:review": "npm run build && node scripts/review-collector-test.mjs",
+    "test:skills": "npm run build && node scripts/skill-manager-test.mjs",
     "test:smoke": "npm run build && node scripts/smoke-test.mjs"
   },
   "dependencies": {
