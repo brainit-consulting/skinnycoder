@@ -62,18 +62,18 @@ codex login
 
 ## Install
 
-### npm registry package
+### npm global install (recommended)
 
-After the package has been bootstrapped on npm, install the immutable published
-release from the registry:
+For ordinary use, install the current published release from npm:
 
 ```bash
 npm install -g skinnycoder
+skinnycoder --version
 ```
 
-This does not clone the GitHub repository or link a mutable working tree. Until
-the one-time npm bootstrap described under [Trusted npm releases](#trusted-npm-releases)
-is complete, use the source-checkout method below.
+This installs npm's `latest` release and does not clone the GitHub repository or
+link a mutable working tree. Use the source-checkout method below when you want
+to contribute or run the current GitHub source.
 
 ### GitHub source checkout
 
@@ -164,13 +164,11 @@ git tag -a vX.Y.Z -m "Release SkinnyCoder vX.Y.Z"
 git push origin vX.Y.Z
 ```
 
-### One-time npm owner setup
+### npm owner setup
 
-The `skinnycoder` package does not yet exist on npm, and npm only permits a
-trusted publisher to be attached to an existing package. An npm owner must
-therefore complete one bootstrap setup: authenticate with 2FA, manually publish
-the first reviewed unique version as a public package, then open that package's
-Settings → Trusted publishing and add GitHub Actions with these exact values:
+The initial npm bootstrap is complete: `skinnycoder@0.2.2` is published and must
+not be published again. The npm owner must verify or complete the package's
+Settings → Trusted publishing entry for GitHub Actions with these exact values:
 
 - Organization or user: `brainit-consulting`
 - Repository: `skinnycoder`

@@ -456,9 +456,10 @@ skinnycoder --version</pre>
         <div class="section-heading"><span class="section-id">04</span><h2 id="install-title">Install and release</h2></div>
         <div class="split">
           <div class="code-panel" aria-label="npm registry installation">
-            <pre><span class="micro"># PUBLISHED NPM RELEASE</span>
-npm install -g skinnycoder</pre>
-            <p>The npm command installs an immutable registry release. It does not clone or link a GitHub working tree.</p>
+            <pre><span class="micro"># RECOMMENDED: NPM GLOBAL INSTALL</span>
+npm install -g skinnycoder
+skinnycoder --version</pre>
+            <p>This installs npm's current <code>latest</code> release. It does not clone or link a GitHub working tree.</p>
           </div>
           <div class="code-panel" aria-label="GitHub source installation">
             <pre><span class="micro"># CURRENT GITHUB SOURCE</span>
@@ -474,7 +475,7 @@ npm link</pre>
           <h3>Tokenless npm publishing</h3>
           <p>Maintainers release from an intentional <code>vX.Y.Z</code> tag. A no-OIDC job verifies the tag, main-branch ancestry, build, tests, and package contents. A separate minimal job receives a short-lived npm identity and publishes the verified tarball with lifecycle scripts disabled.</p>
           <p>No long-lived npm token is stored in GitHub.</p>
-          <p>One npm owner must first bootstrap the public package, then bind <code>brainit-consulting/skinnycoder</code> to <code>publish-npm.yml</code> in npm's Trusted publishing settings with <code>npm publish</code> permission.</p>
+          <p><code>skinnycoder@0.2.2</code> is published and must not be published again. The npm owner must verify the <code>brainit-consulting/skinnycoder</code> binding to <code>publish-npm.yml</code> in npm's Trusted publishing settings with <code>npm publish</code> permission.</p>
         </div>
       </section>
 
