@@ -20,21 +20,24 @@
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
     "prepack": "npm run build",
-    "test": "npm run build && node scripts/interaction-test.mjs && node scripts/workflow-test.mjs && node scripts/patch-test.mjs && node scripts/review-collector-test.mjs && node scripts/skill-manager-test.mjs && node scripts/smoke-test.mjs",
+    "test": "npm run build && node scripts/interaction-test.mjs && node scripts/workflow-test.mjs && node scripts/patch-test.mjs && node scripts/review-collector-test.mjs && node scripts/codex-provider-test.mjs && node scripts/skill-manager-test.mjs && node scripts/smoke-test.mjs",
     "test:review": "npm run build && node scripts/review-collector-test.mjs",
     "test:interaction": "npm run build && node scripts/interaction-test.mjs",
     "test:workflow": "npm run build && node scripts/workflow-test.mjs",
     "test:patch": "npm run build && node scripts/patch-test.mjs",
+    "test:provider": "npm run build && node scripts/codex-provider-test.mjs",
     "test:skills": "npm run build && node scripts/skill-manager-test.mjs",
     "test:smoke": "npm run build && node scripts/smoke-test.mjs"
   },
   "dependencies": {
     "chalk": "^5.6.2",
     "commander": "^14.0.2",
+    "cross-spawn": "^7.0.6",
     "diff": "^8.0.2",
     "zod": "^4.1.13"
   },
   "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
     "@types/diff": "^7.0.2",
     "@types/node": "^24.10.1",
     "tsx": "^4.23.4",

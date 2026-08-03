@@ -1,19 +1,39 @@
 import assert from "node:assert/strict";
 import { access, mkdtemp, readFile, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, parse } from "node:path";
 import { Session } from "../dist/session.js";
-import { applyAction, undoLastChangeSet } from "../dist/tools.js";
+import { applyAction, readFilePage, safePath, undoLastChangeSet } from "../dist/tools.js";
 
 const cwd = await mkdtemp(join(tmpdir(), "skinnycoder-patch-test-"));
 try {
   await testAtomicPatchAndUndo(cwd);
   await testPatchValidation(cwd);
+  await testCrossDrivePathRejection(cwd);
   await testSymbolicPathRejection(cwd);
   await testUndoConflict(cwd);
   console.log("patch tests passed");
 } finally {
   await rm(cwd, { recursive: true, force: true });
+}
+
+async function testCrossDrivePathRejection(cwd) {
+  if (process.platform !== "win32") return;
+
+  const currentDrive = parse(cwd).root.slice(0, 2).toLowerCase();
+  const otherRoot = currentDrive === "z:" ? "Y:\\" : "Z:\\";
+  const outside = join(otherRoot, "skinnycoder-escape.txt");
+
+  assert.throws(() => safePath(cwd, outside), /path escapes cwd/);
+  assert.throws(() => safePath(cwd, outside, [otherRoot]), /path escapes cwd/);
+  await assert.rejects(readFilePage(cwd, outside), /path escapes cwd/);
+  await assert.rejects(
+    applyAction(
+      { type: "create_file", path: outside, content: "blocked" },
+      { cwd, session: new Session(cwd), dryRun: true }
+    ),
+    /path escapes cwd/
+  );
 }
 
 async function testSymbolicPathRejection(cwd) {

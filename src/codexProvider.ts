@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import spawn from "cross-spawn";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -283,7 +283,11 @@ function extractJson(text: string): string {
 
 function run(command: string, args: string[], cwd: string, stdin: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd, shell: process.platform === "win32" });
+    const child = spawn(command, args, { cwd, windowsHide: true });
+    if (!child.stdin || !child.stdout || !child.stderr) {
+      reject(new Error(`could not open stdio for ${command}`));
+      return;
+    }
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk) => { stdout += String(chunk); });

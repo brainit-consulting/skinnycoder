@@ -1,10 +1,13 @@
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { readCodexModelConfig } from "../dist/codexModel.js";
 
 const cwd = process.cwd();
 const scratch = join(cwd, "scratch-smoke-test.txt");
 const version = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8")).version;
+const configuredModel = readCodexModelConfig(cwd);
+const configuredReasoning = configuredModel.reasoningEffort ?? "Codex default";
 
 rmSync(scratch, { force: true });
 
@@ -19,7 +22,7 @@ const cases = [
   {
     name: "slash commands",
     input: ["/help", "/skills", "/start-an-app", "/security-scanner", "n", "/skills stop", "/status", "/reasoning high", "/status", "/reasoning default", "/scope src", "/scope", "/files", "/read package.json", "/scope clear", "/read package.json", "/run Write-Output direct-run-ok", "y", "/context", "/changes", "/exit"],
-    expect: ["/review", "/start-an-app", "/security-scanner", "trusted skills", "/start-an-app requires a new or empty folder", "Install trusted security-scanner skill for Codex?", "skill installation skipped", "no active skill", `skinnycoder: v${version}`, "hint: type /help to get started", "model:", "active skill: none", "reasoning: high (SkinnyCoder session override)", "high reasoning", "reasoning: low (Codex user config)", "scope: src", "file cli.ts", "path is outside active scope: package.json", "scope: entire working directory", "\"name\": \"skinnycoder\"", "Run command?", "direct-run-ok", "retained turns: 0", "last Codex call: none yet", "no skinnycoder changes"]
+    expect: ["/review", "/start-an-app", "/security-scanner", "trusted skills", "/start-an-app requires a new or empty folder", "Install trusted security-scanner skill for Codex?", "skill installation skipped", "no active skill", `skinnycoder: v${version}`, "hint: type /help to get started", "model:", "active skill: none", "reasoning: high (SkinnyCoder session override)", "high reasoning", `reasoning: ${configuredReasoning} (${configuredModel.reasoningSource})`, "scope: src", "file cli.ts", "path is outside active scope: package.json", "scope: entire working directory", "\"name\": \"skinnycoder\"", "Run command?", "direct-run-ok", "retained turns: 0", "last Codex call: none yet", "no skinnycoder changes"]
   },
   {
     name: "codex answer",

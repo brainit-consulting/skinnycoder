@@ -226,12 +226,13 @@ export async function undoLastChangeSet(cwd: string, session: Session): Promise<
 }
 
 export function safePath(cwd: string, path: string, scope: string[] = []): string {
-  const full = resolve(cwd, path);
-  const rel = relative(cwd, full);
-  if (rel.startsWith("..") || resolve(full) === resolve(cwd)) {
-    if (resolve(full) !== resolve(cwd)) throw new Error(`path escapes cwd: ${path}`);
-  }
-  if (scope.length > 0 && !scope.some((entry) => isWithin(resolve(cwd, entry), full))) {
+  const root = resolve(cwd);
+  const full = resolve(root, path);
+  if (!isWithin(root, full)) throw new Error(`path escapes cwd: ${path}`);
+  if (scope.length > 0 && !scope.some((entry) => {
+    const scopeRoot = resolve(root, entry);
+    return isWithin(root, scopeRoot) && isWithin(scopeRoot, full);
+  })) {
     throw new Error(`path is outside active scope: ${path}`);
   }
   return full;
