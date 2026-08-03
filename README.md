@@ -10,7 +10,9 @@
 
 SkinnyCoder is a bare minimum coding harness that can be extended as needed.
 
-It is a lean TypeScript CLI with an 80s amber terminal style. It delegates model calls to the installed `codex` CLI first, so users can reuse their Codex login/subscription. API key provider support can be added later without changing the local tool loop.
+It is a lean TypeScript CLI with an 80s amber terminal style. It delegates
+model calls to the installed `codex` CLI, so users can reuse their Codex
+login/subscription.
 
 View the single-file demo page: [skinnycoder.html](./skinnycoder.html)
 
@@ -18,21 +20,25 @@ View the single-file demo page: [skinnycoder.html](./skinnycoder.html)
 
 - Starts an amber command-line coding session.
 - Keeps multiline terminal pastes together as one request.
-- Uses `codex exec` as the first provider.
-- Keeps context small and local.
-- Asks approval before edits and shell commands.
+- Uses the installed Codex CLI through `codex exec`.
+- Keeps retained context small and inspectable.
+- Asks approval before model-proposed edits and shell commands.
 - Shows file diffs before applying changes.
-- Can preview and approve a related multi-file patch as one atomic write.
+- Can preview and approve a related multi-file patch as one grouped write.
 - Tracks SkinnyCoder changes for `/changes` and `/undo`.
 - Can install and run allowlisted BrainIT workflows with `/start-an-app` and `/security-scanner`.
-- Checkpoints long skill workflows and resumes them without repeating approvals.
+- Checkpoints long skill workflows within the current session.
 - Includes a smoke test for the basic CLI flow.
 
 ## Why It Starts Lean
 
-SkinnyCoder stays small because it does not try to replace Codex, index the whole project, or load a large agent framework at startup.
+SkinnyCoder stays small because it does not try to replace Codex, index the
+whole project, or load a large agent framework at startup.
 
-The CLI only boots a local TypeScript command loop, prints the terminal UI, and waits for input. When the user asks for model help, SkinnyCoder delegates reasoning to the installed `codex` CLI with `codex exec`, which reuses the user's existing Codex login/subscription.
+The CLI only boots a local TypeScript command loop, prints the terminal UI, and
+waits for input. When the user asks for model help, SkinnyCoder delegates
+reasoning to the installed `codex` CLI with `codex exec`, which reuses the
+user's existing Codex login/subscription.
 
 The local app owns only the minimum coding harness:
 
@@ -44,9 +50,13 @@ The local app owns only the minimum coding harness:
 - change tracking and undo
 - small retained context
 
-It also asks Codex for one compact JSON action at a time instead of sending a large tool framework or full repository context. Read/list actions are cheap and automatic; edits and shell commands stay local and require approval.
+It also asks Codex for one compact JSON action at a time instead of sending a
+large tool framework or full repository context. Read/list actions are cheap
+and automatic; model-proposed edits and shell commands stay local and require
+approval.
 
-That is the "skinny" part: Codex provides the model brain, while SkinnyCoder provides the smallest useful terminal harness around it.
+That is the "skinny" part: Codex provides the model brain, while SkinnyCoder
+provides the smallest useful terminal harness around it.
 
 ## Requirements
 
@@ -242,7 +252,7 @@ skinnycoder --no-update-check
 /run <command>     Preview, approve, and run a local shell command
 /web <query>       Run an isolated web search with source links
 /review            Review scoped uncommitted changes
-/diff              Show git diff
+/diff              Show the scoped unstaged git diff
 /changes           Show files changed by SkinnyCoder
 /undo              Undo the last SkinnyCoder file change
 /clear             Clear retained conversation turns
@@ -337,12 +347,13 @@ For changes spanning two or more related files, the planner can return one
 shows one combined diff, and asks once before writing. Shell commands can never
 be included and still require separate approval.
 
-Grouped writes are applied as one unit. A write failure rolls back files already
-written, and `/undo` reverses the entire group. Undo refuses to overwrite a file
-that changed after SkinnyCoder wrote it. Ambiguous replacement text is rejected
-instead of changing an arbitrary occurrence, and oversized grouped previews
-must be split into smaller reviewable patches. Local file tools also reject any
-path that traverses a symbolic link or Windows junction.
+Grouped writes use one approval. If a write fails, SkinnyCoder attempts to roll
+back files already written and reports if rollback is incomplete. `/undo`
+reverses an entire successful group and refuses to overwrite a file that changed
+after SkinnyCoder wrote it. Ambiguous replacement text is rejected instead of
+changing an arbitrary occurrence, and oversized grouped previews must be split
+into smaller reviewable patches. Local file tools also reject any path that
+traverses a symbolic link or Windows junction.
 
 ## Trusted skill workflows
 
@@ -373,9 +384,11 @@ If the trusted skill is missing or its recorded source cannot be verified, it
 shows the exact install command and asks before running it. For Codex the
 equivalent command is:
 
+<!-- markdownlint-disable MD013 -->
 ```bash
 npx --yes skills@1.5.21 add brainit-consulting/DreamForgeSoftwareAgentSkills --skill start-an-app --global --agent codex --yes
 ```
+<!-- markdownlint-enable MD013 -->
 
 The installer runs with anonymous Skills CLI telemetry disabled. Skill installs
 never happen during ordinary startup. SkinnyCoder accepts installations from
@@ -388,13 +401,14 @@ reloads that skill for each fresh planner call while retaining only its normal
 four recent turns plus a capped 3,000-character workflow state containing
 confirmed requirements, decisions, approvals, current phase, and pending
 action. Nonblocking progress continues automatically; an actual question pauses
-for input. Tool actions refresh both the model summary and a content-free local
-last-action checkpoint, and `/continue` resumes after
-the 24-action safety boundary without repeating confirmed decisions. Before a
-workflow can finish with `complete_skill`, it must verify required files and run
-the project's configured lint/build checks when available. The user can leave a
-workflow with `/skills stop`. Skill instructions never override the active cwd,
-`/scope`, diff preview, or approval rules.
+for input. Tool actions refresh both the model summary and a compact local
+last-action checkpoint, and `/continue` instructs the workflow to resume after
+the 24-action safety boundary without repeating confirmed decisions. This state
+and checkpoint last only for the current SkinnyCoder process; exiting starts a
+fresh session. Before a workflow can finish with `complete_skill`, it must
+verify required files and run the project's configured lint/build checks when
+available. The user can leave a workflow with `/skills stop`. Skill instructions
+never override the active cwd, `/scope`, diff preview, or approval rules.
 
 ## Model selection
 
@@ -434,7 +448,7 @@ Supported values are `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`.
 The launch option `--reasoning <level>` creates the same session-level override.
 SkinnyCoder passes the override to normal planner calls and `/web` searches but
 does not change the user's global Codex configuration. Higher levels can take
-longer and use more reasoning tokens; `ultra` may use subagents.
+longer and use more reasoning tokens.
 
 The application version comes from `package.json`, appears at startup, and is
 also available without launching a session:
@@ -459,10 +473,10 @@ These actions require approval:
 - `run_command`
 
 The model proposes one compact JSON action at a time. A `patch_files` action can
-group related file operations, but it remains one bounded, fully previewed,
-atomic action. SkinnyCoder owns local file writes, shell execution, approval,
-change tracking, and undo. Trusted skill workflows use the same action and
-approval boundary.
+group related file operations, but it remains one bounded, fully previewed
+action under one approval. SkinnyCoder owns local file writes, shell execution,
+approval, change tracking, and undo. Trusted skill workflows use the same action
+and approval boundary.
 
 ## Context
 
@@ -472,8 +486,12 @@ Use:
 /context
 ```
 
-This shows the local retained context estimate and, after a model call, the last Codex-reported token usage.
+This shows the local retained context estimate and, after a model call, the last
+Codex-reported token usage.
 
 ## Current Scope
 
-This is intentionally small. It is not trying to be a full IDE, a general skill marketplace, or a long-context project indexer. The goal is a simple, inspectable coding loop that grows through explicit, allowlisted workflows where they add clear value.
+This is intentionally small. It is not trying to be a full IDE, a general skill
+marketplace, or a long-context project indexer. The goal is a simple,
+inspectable coding loop that grows through explicit, allowlisted workflows
+where they add clear value.

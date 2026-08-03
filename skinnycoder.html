@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="SkinnyCoder v0.2.2 — a lean, local coding harness powered by the Codex CLI, with reliable editing and trusted BrainIT skill workflows." />
-  <meta name="color-scheme" content="dark" />
-  <link rel="icon" href="data:," />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SkinnyCoder v0.2.2 — a lean, local coding harness powered by the Codex CLI, with reliable editing and trusted BrainIT skill workflows.">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="data:,">
   <title>SkinnyCoder v0.2.2</title>
   <style>
     :root {
@@ -330,7 +330,7 @@
     <div class="content">
       <p class="bootline"><span class="prompt-mark">H:\skinnycoder&gt;</span> skinnycoder --no-logo</p>
 
-      <pre class="logo" aria-label="SkinnyCoder">
+      <pre class="logo" role="img" aria-label="SkinnyCoder">
   ____  _  _______ _   _ _   ___   ______ ___  ____  _____ ____
  / ___|| |/ /_   _| \ | | \ | \ \ / / ___/ _ \|  _ \| ____|  _ \
  \___ \| ' /  | | |  \| |  \| |\ V / |  | | | | | | |  _| | |_) |
@@ -340,9 +340,9 @@
       <div class="hero-grid">
         <header>
           <p class="eyebrow">Lean code harness // local-first // approval-gated</p>
-          <h1>Keep the brain.<br />Lose the bulk.</h1>
+          <h1>Keep the brain.<br>Lose the bulk.</h1>
           <p class="lede">
-            SkinnyCoder is a deliberately small TypeScript CLI that delegates reasoning to your installed Codex CLI while keeping file access, diffs, approvals, undo, and retained context visible and local.
+            SkinnyCoder is a deliberately small TypeScript CLI that delegates reasoning to your installed Codex CLI while keeping local file operations, diffs, approvals, undo, and retained context visible and locally controlled.
           </p>
         </header>
 
@@ -353,7 +353,7 @@
             <dt>Auth</dt><dd>Codex login / subscription</dd>
             <dt>Context</dt><dd>Last 4 model turns</dd>
             <dt>Writes</dt><dd>Approval required</dd>
-            <dt>Source</dt><dd>Local TypeScript</dd>
+            <dt>Runtime</dt><dd>Local CLI</dd>
           </dl>
         </aside>
       </div>
@@ -362,9 +362,9 @@
         <div class="section-heading"><span class="section-id">01</span><h2 id="flow-title">One action at a time</h2></div>
         <div class="flow">
           <div class="flow-step"><span class="step-number">[01]</span><strong>Ask</strong><p>Give SkinnyCoder a focused task. Multiline pastes stay together as one request.</p></div>
-          <div class="flow-step"><span class="step-number">[02]</span><strong>Delegate</strong><p>Codex returns one compact JSON action and durable skill state instead of a large agent framework.</p></div>
-          <div class="flow-step"><span class="step-number">[03]</span><strong>Inspect</strong><p>Reads are paged with continuation commands. Diffs appear before writes. Scope keeps files bounded.</p></div>
-          <div class="flow-step"><span class="step-number">[04]</span><strong>Approve</strong><p>You authorize one complete diff; related file edits apply atomically and undo together.</p></div>
+          <div class="flow-step"><span class="step-number">[02]</span><strong>Delegate</strong><p>Codex returns one compact JSON action; active skills carry capped in-session state.</p></div>
+          <div class="flow-step"><span class="step-number">[03]</span><strong>Inspect</strong><p>Reads are capped, with continuation commands for later lines. Diffs appear before writes. Scope keeps file tools bounded.</p></div>
+          <div class="flow-step"><span class="step-number">[04]</span><strong>Approve</strong><p>You authorize one complete diff; related file edits share one approval and undo together.</p></div>
         </div>
       </section>
 
@@ -399,9 +399,9 @@
               <dt>/edit &lt;file&gt; ...</dt><dd>Preserve explicit edit intent, create missing targets, then review the diff.</dd>
               <dt>/run &lt;command&gt;</dt><dd>Approve a direct command and see its exit code, stdout, and stderr.</dd>
               <dt>/review</dt><dd>Review scoped uncommitted changes without retaining the diff.</dd>
-              <dt>/diff</dt><dd>Show Git changes within the active scope.</dd>
+              <dt>/diff</dt><dd>Show the unstaged Git diff within the active scope.</dd>
               <dt>/changes</dt><dd>List files changed by SkinnyCoder.</dd>
-              <dt>/undo</dt><dd>Reverse the last single edit or atomic multi-file patch.</dd>
+              <dt>/undo</dt><dd>Reverse the last single edit or successful multi-file patch.</dd>
             </dl>
           </article>
 
@@ -409,7 +409,7 @@
             <h3>Guided skills</h3>
             <dl class="commands">
               <dt>/skills</dt><dd>Check trusted BrainIT workflow installation and active status.</dd>
-              <dt>/continue</dt><dd>Resume an active skill from its durable checkpoint.</dd>
+              <dt>/continue</dt><dd>Resume an active skill from its current-session checkpoint.</dd>
               <dt>/start-an-app [idea]</dt><dd>Interview, agree a build sheet, then scaffold in a new folder.</dd>
               <dt>/security-scanner</dt><dd>Run an OWASP Top 10:2025 audit of the current project.</dd>
               <dt>/skills stop</dt><dd>Leave the active workflow without uninstalling it.</dd>
@@ -432,7 +432,7 @@
       <section aria-labelledby="launch-title">
         <div class="section-heading"><span class="section-id">03</span><h2 id="launch-title">Launch small</h2></div>
         <div class="split">
-          <div class="code-panel" aria-label="Launch commands">
+          <div class="code-panel">
             <pre><span class="micro"># FROM ANY TERMINAL</span>
 skinnycoder
 
@@ -444,10 +444,10 @@ skinnycoder --version</pre>
           <div class="note-panel">
             <h3>What stays skinny</h3>
             <p><code>/run</code> output never enters model context. <code>/web</code> uses an ephemeral search and retains neither the query nor answer.</p>
-            <p><code>/scope</code> stores only path names. SkinnyCoder sends at most four recent turns; active skills add capped state plus a content-free local action checkpoint and resume without repeating confirmed approvals.</p>
+            <p><code>/scope</code> stores only path names. SkinnyCoder sends at most four recent turns; active skills add capped state plus a compact local action checkpoint. Both reset when the process exits.</p>
             <p>Trusted skills install only on first use and only after approval. Their workflows keep the same scope, diff, command, and write gates.</p>
-            <p>Related edits may arrive as one bounded <code>patch_files</code> diff. It rejects links and junctions, validates before writing, rolls back partial failures, and never includes shell commands.</p>
-            <p>Shell commands are not constrained by file scope. Every command is previewed and requires your approval.</p>
+            <p>Related edits may arrive as one bounded <code>patch_files</code> diff. It rejects links and junctions, validates before writing, attempts rollback after a partial failure, and never includes shell commands.</p>
+            <p>Shell commands are not constrained by file scope. <code>/run</code> and planner-proposed commands are previewed and require your approval.</p>
           </div>
         </div>
       </section>
@@ -455,13 +455,13 @@ skinnycoder --version</pre>
       <section aria-labelledby="install-title">
         <div class="section-heading"><span class="section-id">04</span><h2 id="install-title">Install and release</h2></div>
         <div class="split">
-          <div class="code-panel" aria-label="npm registry installation">
+          <div class="code-panel">
             <pre><span class="micro"># RECOMMENDED: NPM GLOBAL INSTALL</span>
 npm install -g skinnycoder
 skinnycoder --version</pre>
             <p>This installs npm's current <code>latest</code> release. It does not clone or link a GitHub working tree.</p>
           </div>
-          <div class="code-panel" aria-label="GitHub source installation">
+          <div class="code-panel">
             <pre><span class="micro"># CURRENT GITHUB SOURCE</span>
 git clone https://github.com/brainit-consulting/skinnycoder.git
 cd skinnycoder
@@ -474,7 +474,7 @@ npm link</pre>
         <div class="note-panel">
           <h3>Tokenless npm publishing</h3>
           <p>Maintainers release from an intentional <code>vX.Y.Z</code> tag. A no-OIDC job verifies the tag, main-branch ancestry, build, tests, and package contents. A separate minimal job receives a short-lived npm identity and publishes the verified tarball with lifecycle scripts disabled.</p>
-          <p>No long-lived npm token is stored in GitHub.</p>
+          <p>The release workflow does not use a long-lived npm token.</p>
           <p><code>skinnycoder@0.2.2</code> is published and must not be published again. The npm owner must verify the <code>brainit-consulting/skinnycoder</code> binding to <code>publish-npm.yml</code> in npm's Trusted publishing settings with <code>npm publish</code> permission.</p>
         </div>
       </section>
