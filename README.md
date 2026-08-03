@@ -62,16 +62,28 @@ codex login
 
 ## Install
 
-From npm, once published:
+### npm registry package
+
+After the package has been bootstrapped on npm, install the immutable published
+release from the registry:
 
 ```bash
 npm install -g skinnycoder
 ```
 
-From this repo:
+This does not clone the GitHub repository or link a mutable working tree. Until
+the one-time npm bootstrap described under [Trusted npm releases](#trusted-npm-releases)
+is complete, use the source-checkout method below.
+
+### GitHub source checkout
+
+Clone the repository when you want the current GitHub source or plan to
+contribute:
 
 ```bash
-npm install
+git clone https://github.com/brainit-consulting/skinnycoder.git
+cd skinnycoder
+npm ci
 npm run build
 npm link
 ```
@@ -124,7 +136,51 @@ npm test
 ```
 
 Focused scripts remain available as `test:interaction`, `test:workflow`,
-`test:patch`, `test:review`, `test:skills`, and `test:smoke`.
+`test:patch`, `test:provider`, `test:review`, `test:skills`, and `test:smoke`.
+
+## Trusted npm releases
+
+npm releases are prepared on `main` and published only by
+[`.github/workflows/publish-npm.yml`](./.github/workflows/publish-npm.yml). The
+workflow runs on a pushed `vX.Y.Z` tag, requires the tag to exactly match
+`package.json`, and refuses a tagged commit that is not contained in
+`origin/main`. On a GitHub-hosted runner it uses Node.js 24 and an npm version
+compatible with trusted publishing, then runs `npm ci`, the build, the full test
+suite, and packaging without OIDC permission. A separate minimal publish job
+downloads that verified tarball and runs `npm publish --ignore-scripts --access
+public` with OIDC permission.
+
+Only the final publish job has `id-token: write`, and it disables package
+lifecycle scripts while that permission is available. The workflow has no
+`NPM_TOKEN` or other long-lived registry credential. npm automatically adds
+provenance for a public package published from this public GitHub repository
+through trusted publishing.
+
+For each release, update the version and both documentation surfaces, commit
+and push the verified change to `main`, then create and push the matching tag:
+
+```bash
+git tag -a vX.Y.Z -m "Release SkinnyCoder vX.Y.Z"
+git push origin vX.Y.Z
+```
+
+### One-time npm owner setup
+
+The `skinnycoder` package does not yet exist on npm, and npm only permits a
+trusted publisher to be attached to an existing package. An npm owner must
+therefore complete one bootstrap setup: authenticate with 2FA, manually publish
+the first reviewed unique version as a public package, then open that package's
+Settings → Trusted publishing and add GitHub Actions with these exact values:
+
+- Organization or user: `brainit-consulting`
+- Repository: `skinnycoder`
+- Workflow filename: `publish-npm.yml`
+- Environment: leave blank
+- Allowed action: `npm publish`
+
+After the first OIDC release succeeds, npm recommends setting publishing access
+to require 2FA and disallow tokens. Normal later releases need only the verified
+version commit and matching tag; contributors never need an npm write token.
 
 ## Usage
 

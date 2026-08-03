@@ -452,6 +452,32 @@ skinnycoder --version</pre>
         </div>
       </section>
 
+      <section aria-labelledby="install-title">
+        <div class="section-heading"><span class="section-id">04</span><h2 id="install-title">Install and release</h2></div>
+        <div class="split">
+          <div class="code-panel" aria-label="npm registry installation">
+            <pre><span class="micro"># PUBLISHED NPM RELEASE</span>
+npm install -g skinnycoder</pre>
+            <p>The npm command installs an immutable registry release. It does not clone or link a GitHub working tree.</p>
+          </div>
+          <div class="code-panel" aria-label="GitHub source installation">
+            <pre><span class="micro"># CURRENT GITHUB SOURCE</span>
+git clone https://github.com/brainit-consulting/skinnycoder.git
+cd skinnycoder
+npm ci
+npm run build
+npm link</pre>
+            <p>The source route is for contributors and current GitHub code; rebuild after source changes.</p>
+          </div>
+        </div>
+        <div class="note-panel">
+          <h3>Tokenless npm publishing</h3>
+          <p>Maintainers release from an intentional <code>vX.Y.Z</code> tag. A no-OIDC job verifies the tag, main-branch ancestry, build, tests, and package contents. A separate minimal job receives a short-lived npm identity and publishes the verified tarball with lifecycle scripts disabled.</p>
+          <p>No long-lived npm token is stored in GitHub.</p>
+          <p>One npm owner must first bootstrap the public package, then bind <code>brainit-consulting/skinnycoder</code> to <code>publish-npm.yml</code> in npm's Trusted publishing settings with <code>npm publish</code> permission.</p>
+        </div>
+      </section>
+
       <footer>
         <span>Created by Emile du Toit from <a href="https://brainitconsulting.com/">BrainITconsulting.com</a></span>
         <span><span class="prompt-mark">H:\skinnycoder&gt;</span><span class="cursor" aria-hidden="true"></span></span>
