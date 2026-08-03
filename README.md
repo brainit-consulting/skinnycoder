@@ -164,7 +164,7 @@ skinnycoder --no-update-check
 
 ```text
 /help              Show commands
-/about             Open the local SkinnyCoder v0.2.1 page
+/about             Open the local SkinnyCoder v0.2.2 page
 /login             Run Codex login
 /model [name]      Show or override the Codex model for this session
 /model default     Return to the model selected by Codex configuration
@@ -292,7 +292,7 @@ path that traverses a symbolic link or Windows junction.
 
 ## Trusted skill workflows
 
-SkinnyCoder v0.2.1 includes two allowlisted workflow commands from
+SkinnyCoder v0.2.2 includes two allowlisted workflow commands from
 [BrainIT Consulting's DreamForge agent skills](https://github.com/brainit-consulting/DreamForgeSoftwareAgentSkills):
 
 ```text
